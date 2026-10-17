@@ -5,6 +5,7 @@ import 'package:exercise_tracking_app/main.dart';
 import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
 import 'package:exercise_tracking_app/ui/history/history_screen.dart';
 
+import 'fakes/fake_backup_file_service.dart';
 import 'fakes/fake_settings_repository.dart';
 import 'fakes/fake_workout_repository.dart';
 
@@ -21,6 +22,7 @@ void main() {
         workoutRepository: FakeWorkoutRepository(),
         settingsRepository: settingsRepository,
         themeController: themeController,
+        backupFileService: FakeBackupFileService(),
       ),
     );
     await tester.pumpAndSettle();

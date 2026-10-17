@@ -13,7 +13,11 @@ Tasarım kuralları için bkz. [DESIGN.md](DESIGN.md).
 - "Geçen sefer" ipucu: bir hareketin bir önceki antrenmandaki setleri
 - 4 renk teması, seçim kalıcı olarak saklanır
 
-**MVP dışı:** giriş sistemi, backend, grafikler, kişisel rekorlar, kas grubu yüzde analizi.
+**MVP sonrası eklenenler:** katlanabilir hareket kartları; CSV dışa aktarma ve JSON yedek/geri yükleme
+(issue #1, bkz. §10).
+
+**Henüz yok:** giriş sistemi, backend, grafikler, kişisel rekorlar, kas grubu yüzde analizi
+(yapılacaklar GitHub Issues'ta).
 
 ## 2. Teknoloji
 
@@ -166,3 +170,21 @@ Geçmiş ──(+)──► Antrenman ──(Hareket ekle)──► Hareket seç
   `ui/core/theme` içindeki sabitler kullanılır (bkz. DESIGN.md).
 - Kullanıcıya görünen metinler Türkçedir; kod, sınıf ve değişken adları İngilizcedir.
 - Bir dosya yalnızca kendi katmanının dosyalarını import eder (UI → data serbest, data → UI yasak).
+- Widget testleri gerçek telefon boyutunda da çalıştırılır (360 × 780, yazı ölçeği 1.3); taşma olmamalı.
+
+## 10. Yedekleme (dışa/içe aktarma)
+
+```
+Ayarlar > Veriler ──► BackupViewModel ──► WorkoutRepository.exportBackup / importBackup
+                            │                 (BackupData: id'siz, hareketlere adla başvurur)
+                            ├──► backup_json_codec   (JSON ⇄ BackupData, format_version'lı)
+                            ├──► backup_csv_exporter (BackupData → CSV, yalnızca dışa aktarma)
+                            └──► BackupFileService   (share_plus ile paylaş, file_picker ile seç)
+```
+
+- **CSV** paylaşım ve tablo programları içindir; **JSON** eksiksiz yedektir ve içe aktarma yalnızca JSON ile yapılır.
+- İçe aktarma **birleştirir**: aynı başlangıç zamanlı antrenman atlanır, hareketler `normalizeForSearch` ile
+  eşleştirilir, mevcut veri silinmez. Doğrulama yazmadan önce yapılır; SQLite tarafı tek transaction'dır
+  (ya hep ya hiç).
+- `BackupFileService` platforma bağlı tek parçadır; testlerde sahtesi kullanılır, mantığın tamamı ViewModel'dedir.
+- JSON biçimi değişirse `BackupData.currentFormatVersion` artırılır ve eski sürümleri okuma desteği korunur.

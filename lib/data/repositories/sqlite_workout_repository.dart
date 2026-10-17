@@ -409,6 +409,165 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     return [for (final row in setRows) ExerciseSet.fromMap(row)];
   }
 
+  // ------------------------------------------------------------------ Yedekleme
+
+  @override
+  Future<BackupData> exportBackup() async {
+    final db = await _db;
+
+    // Tek bir okuma anlık görüntüsü için her şey bir transaction içinde okunur.
+    return db.transaction<BackupData>((txn) async {
+      final exerciseRows = await txn.query('exercises');
+      final catalog = [for (final row in exerciseRows) Exercise.fromMap(row)]
+        ..sort(_compareByName);
+
+      final workoutRows = await txn.query('workouts');
+      final workouts = [for (final row in workoutRows) Workout.fromMap(row)]
+        ..sort(_compareWorkoutsOldestFirst);
+
+      // Hareketler katalogla JOIN edilerek tek sorguda gelir (N+1 yok).
+      final entryRows = await txn.rawQuery('''
+        SELECT we.id, we.workout_id, we.note,
+               e.name AS exercise_name, e.muscle_group AS exercise_muscle_group
+        FROM workout_exercises we
+        JOIN exercises e ON e.id = we.exercise_id
+        ORDER BY we.position, we.id
+      ''');
+
+      final setRows = await txn.rawQuery('''
+        SELECT workout_exercise_id, weight_kg, reps
+        FROM exercise_sets
+        ORDER BY set_number, id
+      ''');
+      final setsByEntry = <int, List<BackupSet>>{};
+      for (final row in setRows) {
+        setsByEntry
+            .putIfAbsent(row['workout_exercise_id'] as int, () => [])
+            .add(BackupSet(
+              weightKg: (row['weight_kg'] as num).toDouble(),
+              reps: row['reps'] as int,
+            ));
+      }
+
+      final entriesByWorkout = <int, List<BackupWorkoutExercise>>{};
+      for (final row in entryRows) {
+        final id = row['id'] as int;
+        entriesByWorkout
+            .putIfAbsent(row['workout_id'] as int, () => [])
+            .add(BackupWorkoutExercise(
+              exerciseName: row['exercise_name'] as String,
+              muscleGroup: MuscleGroup.fromName(row['exercise_muscle_group'] as String),
+              note: row['note'] as String?,
+              sets: setsByEntry[id] ?? const [],
+            ));
+      }
+
+      return BackupData(
+        exportedAt: DateTime.now(),
+        exercises: [
+          for (final exercise in catalog)
+            BackupExercise(name: exercise.name, muscleGroup: exercise.muscleGroup),
+        ],
+        workouts: [
+          for (final workout in workouts)
+            BackupWorkout(
+              startedAt: workout.startedAt,
+              title: workout.title,
+              exercises: entriesByWorkout[workout.id] ?? const [],
+            ),
+        ],
+      );
+    });
+  }
+
+  @override
+  Future<ImportResult> importBackup(BackupData data) async {
+    // Yazmadan önce tüm yedek doğrulanır: hata varsa veritabanına hiçbir şey yazılmaz.
+    _validateBackup(data);
+    final db = await _db;
+
+    return db.transaction<ImportResult>((txn) async {
+      final catalog = <String, Exercise>{};
+      for (final row in await txn.query('exercises')) {
+        final exercise = Exercise.fromMap(row);
+        catalog[normalizeForSearch(exercise.name)] = exercise;
+      }
+
+      var addedExercises = 0;
+      // Katalogda yoksa oluşturur; varsa mevcut hareketi döndürür.
+      Future<Exercise> ensureExercise(String name, MuscleGroup muscleGroup) async {
+        final cleaned = name.trim();
+        final key = normalizeForSearch(cleaned);
+        final existing = catalog[key];
+        if (existing != null) return existing;
+
+        final id = await txn.insert('exercises', {
+          'name': cleaned,
+          'muscle_group': muscleGroup.name,
+        });
+        addedExercises++;
+        final created = Exercise(id: id, name: cleaned, muscleGroup: muscleGroup);
+        catalog[key] = created;
+        return created;
+      }
+
+      for (final exercise in data.exercises) {
+        await ensureExercise(exercise.name, exercise.muscleGroup);
+      }
+      for (final workout in data.workouts) {
+        for (final entry in workout.exercises) {
+          await ensureExercise(entry.exerciseName, entry.muscleGroup);
+        }
+      }
+
+      // Başlangıç zamanları metin olarak saklandığı için aynı biçimde karşılaştırılır.
+      final takenStarts = {
+        for (final row in await txn.query('workouts', columns: ['started_at']))
+          row['started_at'] as String,
+      };
+
+      var addedWorkouts = 0;
+      var skippedWorkouts = 0;
+      for (final workout in data.workouts) {
+        final startedAt = workout.startedAt.toIso8601String();
+        if (!takenStarts.add(startedAt)) {
+          skippedWorkouts++;
+          continue;
+        }
+
+        final workoutId = await txn.insert('workouts', {
+          'started_at': startedAt,
+          'title': _cleanText(workout.title),
+        });
+        for (var position = 0; position < workout.exercises.length; position++) {
+          final entry = workout.exercises[position];
+          final exercise = catalog[normalizeForSearch(entry.exerciseName)]!;
+          final workoutExerciseId = await txn.insert('workout_exercises', {
+            'workout_id': workoutId,
+            'exercise_id': exercise.id,
+            'position': position,
+            'note': _cleanText(entry.note),
+          });
+          for (var i = 0; i < entry.sets.length; i++) {
+            await txn.insert('exercise_sets', {
+              'workout_exercise_id': workoutExerciseId,
+              'set_number': i + 1,
+              'weight_kg': entry.sets[i].weightKg,
+              'reps': entry.sets[i].reps,
+            });
+          }
+        }
+        addedWorkouts++;
+      }
+
+      return ImportResult(
+        addedWorkouts: addedWorkouts,
+        skippedWorkouts: skippedWorkouts,
+        addedExercises: addedExercises,
+      );
+    });
+  }
+
   // ---------------------------------------------------------------------- Yardımcılar
 
   /// Kaydın var olduğunu doğrular; yoksa [ArgumentError] fırlatır.
@@ -432,6 +591,33 @@ class SqliteWorkoutRepository implements WorkoutRepository {
   String? _cleanText(String? text) {
     final trimmed = text?.trim();
     return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+  }
+
+  /// Antrenmanları en eskiden en yeniye, eşitlikte id sırasıyla karşılaştırır.
+  static int _compareWorkoutsOldestFirst(Workout a, Workout b) {
+    final byDate = a.startedAt.compareTo(b.startedAt);
+    return byDate != 0 ? byDate : a.id.compareTo(b.id);
+  }
+
+  /// Yedeğin tamamını yazmadan önce doğrular.
+  void _validateBackup(BackupData data) {
+    for (final exercise in data.exercises) {
+      _requireName(exercise.name);
+    }
+    for (final workout in data.workouts) {
+      for (final entry in workout.exercises) {
+        _requireName(entry.exerciseName);
+        for (final set in entry.sets) {
+          _validateSet(set.weightKg, set.reps);
+        }
+      }
+    }
+  }
+
+  void _requireName(String name) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
+    }
   }
 
   void _validateSet(double weightKg, int reps) {

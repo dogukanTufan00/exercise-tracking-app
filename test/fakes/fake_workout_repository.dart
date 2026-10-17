@@ -213,6 +213,143 @@ class FakeWorkoutRepository implements WorkoutRepository {
     return const <ExerciseSet>[];
   }
 
+  // ------------------------------------------------------------------ Yedekleme
+
+  @override
+  Future<BackupData> exportBackup() async {
+    final exercises = _exercises.values.toList()..sort(_byNormalizedName);
+    final workouts = _workouts.values.toList()..sort(_oldestFirst);
+
+    return BackupData(
+      exportedAt: DateTime.now(),
+      exercises: [
+        for (final e in exercises) BackupExercise(name: e.name, muscleGroup: e.muscleGroup),
+      ],
+      workouts: [
+        for (final workout in workouts)
+          BackupWorkout(
+            startedAt: workout.startedAt,
+            title: workout.title,
+            exercises: [
+              for (final we in _entriesOf(workout.id))
+                BackupWorkoutExercise(
+                  exerciseName: _exercises[we.exerciseId]!.name,
+                  muscleGroup: _exercises[we.exerciseId]!.muscleGroup,
+                  note: we.note,
+                  sets: [
+                    for (final s in _setsOf(we.id)) BackupSet(weightKg: s.weightKg, reps: s.reps),
+                  ],
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  @override
+  Future<ImportResult> importBackup(BackupData data) async {
+    // Yazmadan önce tüm yedek doğrulanır.
+    _validateBackup(data);
+
+    // Değişiklikler önce yerel kopyalarda hesaplanır, en sonda uygulanır.
+    var nextExerciseId = _nextExerciseId;
+    var nextWorkoutId = _nextWorkoutId;
+    var nextWorkoutExerciseId = _nextWorkoutExerciseId;
+    var nextSetId = _nextSetId;
+
+    final catalog = <String, Exercise>{
+      for (final e in _exercises.values) normalizeForSearch(e.name): e,
+    };
+    final newExercises = <Exercise>[];
+    Exercise ensureExercise(String name, MuscleGroup muscleGroup) {
+      final cleaned = name.trim();
+      final key = normalizeForSearch(cleaned);
+      final existing = catalog[key];
+      if (existing != null) return existing;
+
+      final exercise = Exercise(id: nextExerciseId++, name: cleaned, muscleGroup: muscleGroup);
+      catalog[key] = exercise;
+      newExercises.add(exercise);
+      return exercise;
+    }
+
+    for (final exercise in data.exercises) {
+      ensureExercise(exercise.name, exercise.muscleGroup);
+    }
+    for (final workout in data.workouts) {
+      for (final entry in workout.exercises) {
+        ensureExercise(entry.exerciseName, entry.muscleGroup);
+      }
+    }
+
+    final takenStarts = {for (final w in _workouts.values) w.startedAt};
+    final newWorkouts = <Workout>[];
+    final newEntries = <WorkoutExercise>[];
+    final newSets = <ExerciseSet>[];
+    var skippedWorkouts = 0;
+
+    for (final bw in data.workouts) {
+      if (!takenStarts.add(bw.startedAt)) {
+        skippedWorkouts++;
+        continue;
+      }
+
+      final workout = Workout(
+        id: nextWorkoutId++,
+        startedAt: bw.startedAt,
+        title: _cleanText(bw.title),
+      );
+      newWorkouts.add(workout);
+
+      for (var position = 0; position < bw.exercises.length; position++) {
+        final entry = bw.exercises[position];
+        final exercise = catalog[normalizeForSearch(entry.exerciseName)]!;
+        final we = WorkoutExercise(
+          id: nextWorkoutExerciseId++,
+          workoutId: workout.id,
+          exerciseId: exercise.id,
+          position: position,
+          note: _cleanText(entry.note),
+        );
+        newEntries.add(we);
+
+        for (var i = 0; i < entry.sets.length; i++) {
+          newSets.add(ExerciseSet(
+            id: nextSetId++,
+            workoutExerciseId: we.id,
+            setNumber: i + 1,
+            weightKg: entry.sets[i].weightKg,
+            reps: entry.sets[i].reps,
+          ));
+        }
+      }
+    }
+
+    // Uygulama aşaması: artık hata fırlatmaz.
+    _nextExerciseId = nextExerciseId;
+    _nextWorkoutId = nextWorkoutId;
+    _nextWorkoutExerciseId = nextWorkoutExerciseId;
+    _nextSetId = nextSetId;
+    for (final e in newExercises) {
+      _exercises[e.id] = e;
+    }
+    for (final w in newWorkouts) {
+      _workouts[w.id] = w;
+    }
+    for (final we in newEntries) {
+      _workoutExercises[we.id] = we;
+    }
+    for (final s in newSets) {
+      _sets[s.id] = s;
+    }
+
+    return ImportResult(
+      addedWorkouts: newWorkouts.length,
+      skippedWorkouts: skippedWorkouts,
+      addedExercises: newExercises.length,
+    );
+  }
+
   // ------------------------------------------------------------------ Yardımcılar
 
   /// Başlığı / notu kırpar; boşsa `null` döner.
@@ -269,6 +406,33 @@ class FakeWorkoutRepository implements WorkoutRepository {
       setCount: setCount,
       muscleGroups: List.unmodifiable(groups),
     );
+  }
+
+  /// En eski önce; eşitlikte id sırasıyla.
+  static int _oldestFirst(Workout a, Workout b) {
+    final byDate = a.startedAt.compareTo(b.startedAt);
+    return byDate != 0 ? byDate : a.id.compareTo(b.id);
+  }
+
+  /// Yedeğin tamamını yazmadan önce doğrular.
+  void _validateBackup(BackupData data) {
+    for (final exercise in data.exercises) {
+      _requireName(exercise.name);
+    }
+    for (final workout in data.workouts) {
+      for (final entry in workout.exercises) {
+        _requireName(entry.exerciseName);
+        for (final set in entry.sets) {
+          _validateSet(set.weightKg, set.reps);
+        }
+      }
+    }
+  }
+
+  void _requireName(String name) {
+    if (name.trim().isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
+    }
   }
 
   void _validateSet(double weightKg, int reps) {

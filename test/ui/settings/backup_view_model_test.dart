@@ -1,0 +1,198 @@
+import 'dart:async';
+
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:exercise_tracking_app/data/backup/backup_json_codec.dart';
+import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/ui/settings/backup_view_model.dart';
+
+import '../../fakes/fake_backup_file_service.dart';
+import '../../fakes/fake_workout_repository.dart';
+
+BackupData _backupWith({
+  List<BackupWorkout> workouts = const [],
+  List<BackupExercise> exercises = const [],
+}) {
+  return BackupData(
+    exportedAt: DateTime(2026, 3, 5),
+    exercises: exercises,
+    workouts: workouts,
+  );
+}
+
+final BackupWorkout _benchWorkout = BackupWorkout(
+  startedAt: DateTime(2026, 3, 4, 18),
+  title: 'Göğüs',
+  exercises: [
+    BackupWorkoutExercise(
+      exerciseName: 'Bench',
+      muscleGroup: MuscleGroup.chest,
+      sets: const [BackupSet(weightKg: 60, reps: 10)],
+    ),
+  ],
+);
+
+void main() {
+  late FakeWorkoutRepository repository;
+  late FakeBackupFileService files;
+  late BackupViewModel viewModel;
+
+  setUp(() {
+    repository = FakeWorkoutRepository();
+    files = FakeBackupFileService();
+    viewModel = BackupViewModel(
+      repository,
+      files,
+      clock: () => DateTime(2026, 3, 5, 9, 30),
+    );
+  });
+
+  tearDown(() {
+    viewModel.dispose();
+  });
+
+  group('dışa aktarma', () {
+    test('veri yokken hata mesajı verir ve dosya paylaşmaz', () async {
+      await viewModel.exportCsv();
+      expect(viewModel.errorMessage, 'Henüz kaydedilmiş veri yok.');
+      expect(files.sharedFiles, isEmpty);
+
+      viewModel.clearError();
+      await viewModel.exportJson();
+      expect(viewModel.errorMessage, 'Henüz kaydedilmiş veri yok.');
+      expect(files.sharedFiles, isEmpty);
+    });
+
+    test('CSV: tarihli dosya adı, text/csv ve BOM ile başlayan içerik', () async {
+      await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
+
+      await viewModel.exportCsv();
+
+      final shared = files.sharedFiles.single;
+      expect(shared.fileName, 'antrenmanlar-2026-03-05.csv');
+      expect(shared.mimeType, 'text/csv');
+      expect(shared.content, startsWith('﻿'));
+      expect(shared.content, contains('Bench'));
+      expect(viewModel.message, isNull);
+      expect(viewModel.errorMessage, isNull);
+    });
+
+    test('JSON: tarihli dosya adı, application/json ve geri okunabilir içerik', () async {
+      await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
+
+      await viewModel.exportJson();
+
+      final shared = files.sharedFiles.single;
+      expect(shared.fileName, 'antrenman-yedegi-2026-03-05.json');
+      expect(shared.mimeType, 'application/json');
+      final decoded = decodeBackupJson(shared.content);
+      expect(decoded.workouts.single.title, 'Göğüs');
+      expect(decoded.exercises.single.name, 'Bench');
+      expect(viewModel.isBusy, isFalse);
+    });
+  });
+
+  group('içe aktarma', () {
+    test('yeni hareketler sayılarak başarı mesajı gösterir', () async {
+      files.pickResult = encodeBackupJson(_backupWith(workouts: [_benchWorkout]));
+
+      await viewModel.importJson();
+
+      expect(
+        viewModel.message,
+        '1 antrenman eklendi, 0 antrenman atlandı, 1 yeni hareket',
+      );
+      expect(viewModel.errorMessage, isNull);
+      expect((await repository.getWorkoutSummaries()).length, 1);
+    });
+
+    test('hareket zaten varsa yeni hareket kısmı mesajda yer almaz', () async {
+      await repository.createExercise('Bench', MuscleGroup.chest);
+      files.pickResult = encodeBackupJson(_backupWith(workouts: [_benchWorkout]));
+
+      await viewModel.importJson();
+
+      expect(viewModel.message, '1 antrenman eklendi, 0 antrenman atlandı');
+    });
+
+    test('aynı başlangıç zamanlı antrenman atlanır ve sayılır', () async {
+      await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
+      files.pickResult = encodeBackupJson(_backupWith(workouts: [_benchWorkout]));
+
+      await viewModel.importJson();
+
+      expect(viewModel.message, '0 antrenman eklendi, 1 antrenman atlandı');
+    });
+
+    test('vazgeçilirse hiçbir şey olmaz', () async {
+      files.pickResult = null;
+
+      await viewModel.importJson();
+
+      expect(viewModel.message, isNull);
+      expect(viewModel.errorMessage, isNull);
+      expect(viewModel.isBusy, isFalse);
+      expect(await repository.getWorkoutSummaries(), isEmpty);
+    });
+
+    test('bozuk dosyada biçim hatası mesajı gösterir', () async {
+      files.pickResult = '{bozuk';
+
+      await viewModel.importJson();
+
+      expect(
+        viewModel.errorMessage,
+        'Dosya okunamadı: geçerli bir yedek dosyası değil.',
+      );
+      expect(viewModel.message, isNull);
+    });
+
+    test('geçersiz değerde ArgumentError mesajı verir ve veri değişmez', () async {
+      await repository.createWorkout(title: 'Mevcut');
+      files.pickResult = encodeBackupJson(
+        _backupWith(
+          workouts: [
+            BackupWorkout(
+              startedAt: DateTime(2026, 3, 4, 18),
+              exercises: [
+                BackupWorkoutExercise(
+                  exerciseName: 'Bench',
+                  muscleGroup: MuscleGroup.chest,
+                  sets: const [BackupSet(weightKg: -1, reps: 10)],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await viewModel.importJson();
+
+      expect(
+        viewModel.errorMessage,
+        'Yedek dosyasında geçersiz değerler var; hiçbir şey değiştirilmedi.',
+      );
+      final data = await repository.exportBackup();
+      expect(data.workouts.length, 1);
+      expect(data.workouts.single.title, 'Mevcut');
+      expect(data.exercises, isEmpty);
+    });
+  });
+
+  test('işlem sürerken ikinci çağrı yok sayılır', () async {
+    final gate = Completer<void>();
+    files.gate = gate;
+    await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
+
+    final first = viewModel.exportCsv();
+    expect(viewModel.isBusy, isTrue);
+
+    await viewModel.exportJson();
+    gate.complete();
+    await first;
+
+    expect(files.sharedFiles.length, 1);
+    expect(files.sharedFiles.single.mimeType, 'text/csv');
+    expect(viewModel.isBusy, isFalse);
+  });
+}

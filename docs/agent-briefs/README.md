@@ -95,3 +95,6 @@ await tester.pumpAndSettle();
 | 2 | G | [Hareket seç ekranı](wave2-g-exercise-picker.md) |
 | 2 | H | [Ayarlar ekranı + uygulama girişi (main.dart)](wave2-h-settings-app.md) |
 | 3 | I | [Katlanabilir hareket kartları + stepper taşma düzeltmesi](wave3-i-collapsible-cards.md) |
+| 4 | J1 | [Repository'lerde yedekleme (#1)](wave4-j1-backup-repositories.md) |
+| 4 | J2 | [JSON ve CSV biçimleri (#1)](wave4-j2-backup-codecs.md) |
+| 4 | K | [Ayarlar > Veriler bölümü (#1)](wave4-k-backup-settings-ui.md) |

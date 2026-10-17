@@ -6,6 +6,7 @@ import 'data/repositories/prefs_settings_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/repositories/sqlite_workout_repository.dart';
 import 'data/repositories/workout_repository.dart';
+import 'data/services/backup_file_service.dart';
 import 'data/services/database_service.dart';
 import 'ui/core/theme/theme_controller.dart';
 import 'ui/history/history_screen.dart';
@@ -24,22 +25,25 @@ Future<void> main() async {
       workoutRepository: workoutRepository,
       settingsRepository: settingsRepository,
       themeController: themeController,
+      backupFileService: DeviceBackupFileService(),
     ),
   );
 }
 
-/// Uygulamanın kökü: repository'leri ve tema denetleyicisini sağlayıcılarla dağıtır.
+/// Uygulamanın kökü: repository'leri, tema denetleyicisini ve yedek servisini sağlayıcılarla dağıtır.
 class ExerciseTrackerApp extends StatelessWidget {
   const ExerciseTrackerApp({
     super.key,
     required this.workoutRepository,
     required this.settingsRepository,
     required this.themeController,
+    required this.backupFileService,
   });
 
   final WorkoutRepository workoutRepository;
   final SettingsRepository settingsRepository;
   final ThemeController themeController;
+  final BackupFileService backupFileService;
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +51,7 @@ class ExerciseTrackerApp extends StatelessWidget {
       providers: [
         Provider<WorkoutRepository>.value(value: workoutRepository),
         Provider<SettingsRepository>.value(value: settingsRepository),
+        Provider<BackupFileService>.value(value: backupFileService),
         ChangeNotifierProvider<ThemeController>.value(value: themeController),
       ],
       child: Consumer<ThemeController>(

@@ -1,0 +1,209 @@
+import 'dart:convert';
+
+import '../models/backup_data.dart';
+import '../models/muscle_group.dart';
+
+/// Yedek dosyasının `format` alanındaki kimlik.
+const String backupFormatId = 'exercise-tracking-app-backup';
+
+/// Yedek verisini JSON metnine çevirir (okunabilir, iki boşluk girintili).
+String encodeBackupJson(BackupData data) {
+  final map = <String, Object?>{
+    'format': backupFormatId,
+    'format_version': data.formatVersion,
+    'exported_at': data.exportedAt.toIso8601String(),
+    'exercises': [
+      for (final exercise in data.exercises)
+        {
+          'name': exercise.name,
+          'muscle_group': exercise.muscleGroup.name,
+        },
+    ],
+    'workouts': [
+      for (final workout in data.workouts)
+        {
+          'started_at': workout.startedAt.toIso8601String(),
+          'title': workout.title,
+          'exercises': [
+            for (final exercise in workout.exercises)
+              {
+                'exercise': exercise.exerciseName,
+                'muscle_group': exercise.muscleGroup.name,
+                'note': exercise.note,
+                'sets': [
+                  for (final set in exercise.sets)
+                    {
+                      'weight_kg': set.weightKg,
+                      'reps': set.reps,
+                    },
+                ],
+              },
+          ],
+        },
+    ],
+  };
+  return const JsonEncoder.withIndent('  ').convert(map);
+}
+
+/// JSON metnini yedek verisine çevirir.
+///
+/// Biçim veya sürüm uyuşmazlığında ve bozuk alanlarda [BackupFormatException] fırlatır.
+/// Değer kontrolleri (ör. tekrar sayısının pozitif olması) burada yapılmaz.
+BackupData decodeBackupJson(String source) {
+  final Object? decoded;
+  try {
+    decoded = jsonDecode(source);
+  } on FormatException {
+    throw const BackupFormatException(
+      'Dosya okunamadı: geçerli bir yedek dosyası değil.',
+    );
+  }
+
+  if (decoded is! Map<String, dynamic> || decoded['format'] != backupFormatId) {
+    throw const BackupFormatException(
+      'Bu dosya bu uygulamanın yedek dosyası değil.',
+    );
+  }
+
+  final root = decoded;
+  final version = _requireInt(root, 'format_version', '');
+  if (version > BackupData.currentFormatVersion) {
+    throw const BackupFormatException(
+      'Bu yedek uygulamanın daha yeni bir sürümüyle alınmış. Uygulamayı güncelleyin.',
+    );
+  }
+
+  final exportedAt = _requireDate(root, 'exported_at', '');
+
+  final exercises = <BackupExercise>[];
+  final exerciseList = _requireList(root, 'exercises', '');
+  for (var i = 0; i < exerciseList.length; i++) {
+    final path = 'exercises[$i]';
+    final item = _asMap(exerciseList[i], path);
+    exercises.add(
+      BackupExercise(
+        name: _requireString(item, 'name', path),
+        muscleGroup: _requireMuscleGroup(item, 'muscle_group', path),
+      ),
+    );
+  }
+
+  final workouts = <BackupWorkout>[];
+  final workoutList = _requireList(root, 'workouts', '');
+  for (var i = 0; i < workoutList.length; i++) {
+    workouts.add(_decodeWorkout(workoutList[i], 'workouts[$i]'));
+  }
+
+  return BackupData(
+    formatVersion: version,
+    exportedAt: exportedAt,
+    exercises: exercises,
+    workouts: workouts,
+  );
+}
+
+/// Yedek dosyası okunamadığında kullanıcıya gösterilecek hata.
+class BackupFormatException implements Exception {
+  const BackupFormatException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+BackupWorkout _decodeWorkout(Object? value, String path) {
+  final item = _asMap(value, path);
+  final exerciseList = _requireList(item, 'exercises', path);
+  final exercises = <BackupWorkoutExercise>[];
+  for (var i = 0; i < exerciseList.length; i++) {
+    exercises.add(_decodeWorkoutExercise(exerciseList[i], '$path.exercises[$i]'));
+  }
+  return BackupWorkout(
+    startedAt: _requireDate(item, 'started_at', path),
+    title: _optionalString(item, 'title', path),
+    exercises: exercises,
+  );
+}
+
+BackupWorkoutExercise _decodeWorkoutExercise(Object? value, String path) {
+  final item = _asMap(value, path);
+  final setList = _requireList(item, 'sets', path);
+  final sets = <BackupSet>[];
+  for (var i = 0; i < setList.length; i++) {
+    final setPath = '$path.sets[$i]';
+    final set = _asMap(setList[i], setPath);
+    sets.add(
+      BackupSet(
+        weightKg: _requireNum(set, 'weight_kg', setPath).toDouble(),
+        reps: _requireInt(set, 'reps', setPath),
+      ),
+    );
+  }
+  return BackupWorkoutExercise(
+    exerciseName: _requireString(item, 'exercise', path),
+    muscleGroup: _requireMuscleGroup(item, 'muscle_group', path),
+    note: _optionalString(item, 'note', path),
+    sets: sets,
+  );
+}
+
+/// [path] boşsa alan adı tek başına, değilse `path.key` biçiminde döner.
+String _fieldPath(String path, String key) => path.isEmpty ? key : '$path.$key';
+
+Never _corrupt(String path) {
+  throw BackupFormatException('Yedek dosyası bozuk: $path');
+}
+
+Map<String, dynamic> _asMap(Object? value, String path) {
+  if (value is! Map<String, dynamic>) _corrupt(path);
+  return value;
+}
+
+List<dynamic> _requireList(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value is! List) _corrupt(_fieldPath(path, key));
+  return value;
+}
+
+String _requireString(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value is! String) _corrupt(_fieldPath(path, key));
+  return value;
+}
+
+String? _optionalString(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value == null) return null;
+  if (value is! String) _corrupt(_fieldPath(path, key));
+  return value;
+}
+
+num _requireNum(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value is! num) _corrupt(_fieldPath(path, key));
+  return value;
+}
+
+/// Tam sayı bekler; JSON'da `10` ve `10.0` ikisi de kabul edilir.
+int _requireInt(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value is int) return value;
+  if (value is double && value == value.truncateToDouble()) return value.toInt();
+  _corrupt(_fieldPath(path, key));
+}
+
+DateTime _requireDate(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  final parsed = value is String ? DateTime.tryParse(value) : null;
+  if (parsed == null) _corrupt(_fieldPath(path, key));
+  return parsed;
+}
+
+MuscleGroup _requireMuscleGroup(
+  Map<String, dynamic> map,
+  String key,
+  String path,
+) {
+  return MuscleGroup.fromName(_requireString(map, key, path));
+}

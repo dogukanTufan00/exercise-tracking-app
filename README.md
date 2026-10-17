@@ -17,6 +17,8 @@ reps, add notes on how each exercise felt, and see what you lifted last time.
 - [x] Exercise catalog with muscle groups and Turkish-aware search ("sinav" finds "Şınav")
 - [x] Offline-first local storage (SQLite); changes are saved instantly
 - [x] Four color themes with a theme picker (dark orange, red/black, yellow/navy, light blue)
+- [x] Collapsible exercise cards with a one-line summary
+- [x] Export history as CSV (Excel / Google Sheets) and back up / restore everything as JSON
 - [ ] Progress charts and personal records (planned)
 
 ## Tech stack

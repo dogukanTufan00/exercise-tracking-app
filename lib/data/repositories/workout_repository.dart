@@ -86,6 +86,26 @@ abstract interface class WorkoutRepository {
     int exerciseId, {
     required int beforeWorkoutId,
   });
+
+  // ------------------------------------------------------------ Yedekleme
+
+  /// Tüm veriyi yedek olarak döndürür ([BackupData.exportedAt] = şu an).
+  ///
+  /// Katalog: tüm hareketler (hiç kullanılmamışlar dahil), `normalizeForSearch` ile ada göre A→Z.
+  /// Antrenmanlar: [Workout.startedAt]'e göre en eskiden en yeniye (eşitlikte id sırası);
+  /// içlerinde hareketler `position`, setler `setNumber` sırasıyla.
+  Future<BackupData> exportBackup();
+
+  /// Yedeği mevcut verilerle **birleştirir**; mevcut hiçbir veri silinmez ya da değişmez.
+  ///
+  /// - [BackupWorkout.startedAt] değeri mevcut bir antrenmanınkiyle (ya da bu içe aktarmada daha önce
+  ///   eklenen bir antrenmanınkiyle) birebir aynıysa o antrenman **atlanır**.
+  /// - Hareketler `normalizeForSearch(ad)` ile katalogda aranır; bulunamayanlar yedekteki ad ve kas
+  ///   grubuyla oluşturulur ([BackupData.exercises] listesindekiler dahil).
+  /// - Başlık ve not metinleri diğer metotlardaki kurallarla saklanır (kırpılır, boşsa null).
+  /// - **Ya hep ya hiç:** geçersiz bir değer (boş hareket adı, ağırlık < 0, tekrar <= 0) varsa
+  ///   [ArgumentError] fırlatılır ve veritabanında hiçbir değişiklik kalmaz.
+  Future<ImportResult> importBackup(BackupData data);
 }
 
 /// Katalogda aynı adda bir hareket zaten olduğunda fırlatılır.

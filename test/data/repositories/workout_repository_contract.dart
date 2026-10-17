@@ -406,5 +406,216 @@ void runWorkoutRepositoryContractTests(
         expect(await repo.getPreviousSets(bench.id, beforeWorkoutId: w.id), isEmpty);
       });
     });
+
+    group('yedekleme', () {
+      /// Karşılaştırma için yedeği id'lerden ve exportedAt'ten bağımsız satırlara çevirir.
+      List<String> describe(BackupData data) => [
+            for (final e in data.exercises) 'katalog: ${e.name} (${e.muscleGroup.name})',
+            for (final w in data.workouts) ...[
+              'antrenman: ${w.startedAt.toIso8601String()} | ${w.title}',
+              for (final we in w.exercises) ...[
+                '  hareket: ${we.exerciseName} (${we.muscleGroup.name}) | not: ${we.note}',
+                for (final s in we.sets) '    set: ${s.weightKg} x ${s.reps}',
+              ],
+            ],
+          ];
+
+      BackupData backupOf(List<BackupWorkout> workouts, [List<BackupExercise> exercises = const []]) {
+        return BackupData(exportedAt: DateTime(2026, 10, 18), exercises: exercises, workouts: workouts);
+      }
+
+      BackupWorkout workoutAt(DateTime at, {String? title, List<BackupWorkoutExercise>? exercises}) {
+        return BackupWorkout(
+          startedAt: at,
+          title: title,
+          exercises: exercises ??
+              const [
+                BackupWorkoutExercise(
+                  exerciseName: 'Bench Press',
+                  muscleGroup: MuscleGroup.chest,
+                  sets: [BackupSet(weightKg: 60, reps: 10)],
+                ),
+              ],
+        );
+      }
+
+      /// Örnek veriyi repository'nin normal metotlarıyla oluşturur.
+      Future<void> seed(WorkoutRepository target) async {
+        final bench = await target.createExercise('Bench Press', MuscleGroup.chest);
+        final row = await target.createExercise('Barbell Row', MuscleGroup.back);
+        await target.createExercise('Şınav', MuscleGroup.chest); // hiç kullanılmıyor
+
+        final newer = await target.createWorkout(title: 'Upper', startedAt: DateTime(2026, 10, 17, 18, 30));
+        final older = await target.createWorkout(startedAt: DateTime(2026, 10, 10, 19));
+
+        final weB = await target.addExerciseToWorkout(newer.id, bench.id);
+        final weR = await target.addExerciseToWorkout(newer.id, row.id);
+        await target.addSet(weB.id, weightKg: 60, reps: 10);
+        await target.addSet(weB.id, weightKg: 62.5, reps: 8);
+        await target.addSet(weR.id, weightKg: 50, reps: 12);
+        await target.updateExerciseNote(weB.id, '2. sette formum bozuldu');
+
+        final weOld = await target.addExerciseToWorkout(older.id, bench.id);
+        await target.addSet(weOld.id, weightKg: 55, reps: 10);
+      }
+
+      test('boş repository boş yedek verir', () async {
+        final backup = await repo.exportBackup();
+
+        expect(backup.formatVersion, BackupData.currentFormatVersion);
+        expect(backup.exercises, isEmpty);
+        expect(backup.workouts, isEmpty);
+      });
+
+      test('exportBackup tüm veriyi sıralı ve eksiksiz verir', () async {
+        await seed(repo);
+
+        final backup = await repo.exportBackup();
+
+        expect(describe(backup), [
+          'katalog: Barbell Row (back)',
+          'katalog: Bench Press (chest)',
+          'katalog: Şınav (chest)',
+          'antrenman: ${DateTime(2026, 10, 10, 19).toIso8601String()} | null',
+          '  hareket: Bench Press (chest) | not: null',
+          '    set: 55.0 x 10',
+          'antrenman: ${DateTime(2026, 10, 17, 18, 30).toIso8601String()} | Upper',
+          '  hareket: Bench Press (chest) | not: 2. sette formum bozuldu',
+          '    set: 60.0 x 10',
+          '    set: 62.5 x 8',
+          '  hareket: Barbell Row (back) | not: null',
+          '    set: 50.0 x 12',
+        ]);
+      });
+
+      test('dışa aktar → boş repository\'ye içe aktar → aynı veri', () async {
+        await seed(repo);
+        final original = await repo.exportBackup();
+
+        final target = await createRepository();
+        final result = await target.importBackup(original);
+        final copy = await target.exportBackup();
+        await disposeRepository?.call(target);
+
+        expect(result, const ImportResult(addedWorkouts: 2, skippedWorkouts: 0, addedExercises: 3));
+        expect(describe(copy), describe(original));
+      });
+
+      test('aynı yedeği iki kez içe aktarmak kopya oluşturmaz', () async {
+        final backup = backupOf([workoutAt(DateTime(2026, 10, 1)), workoutAt(DateTime(2026, 10, 2))]);
+
+        final first = await repo.importBackup(backup);
+        final second = await repo.importBackup(backup);
+
+        expect(first, const ImportResult(addedWorkouts: 2, skippedWorkouts: 0, addedExercises: 1));
+        expect(second, const ImportResult(addedWorkouts: 0, skippedWorkouts: 2, addedExercises: 0));
+        expect(await repo.getWorkoutSummaries(), hasLength(2));
+      });
+
+      test('mevcut verilerle birleştirir; mevcut veriye dokunmaz', () async {
+        await seed(repo);
+        final before = describe(await repo.exportBackup());
+
+        final result = await repo.importBackup(backupOf([
+          workoutAt(DateTime(2026, 10, 17, 18, 30), title: 'Çakışan'), // seed'de var → atlanır
+          workoutAt(DateTime(2026, 10, 20), title: 'Yeni'),
+        ]));
+
+        expect(result, const ImportResult(addedWorkouts: 1, skippedWorkouts: 1, addedExercises: 0));
+        final after = describe(await repo.exportBackup());
+        // Yeni antrenman en yenisi olduğu için dışa aktarmanın sonuna eklenir; öncesi aynen kalmalı.
+        expect(after.sublist(0, before.length), before);
+        expect(after[before.length], 'antrenman: ${DateTime(2026, 10, 20).toIso8601String()} | Yeni');
+        expect(after, isNot(contains(contains('Çakışan'))));
+      });
+
+      test('hareketleri Türkçe harf duyarsız adla eşleştirir, eksikleri oluşturur', () async {
+        final sinav = await repo.createExercise('Şınav', MuscleGroup.chest);
+
+        final result = await repo.importBackup(backupOf([
+          workoutAt(DateTime(2026, 10, 1), exercises: const [
+            BackupWorkoutExercise(exerciseName: 'SINAV', muscleGroup: MuscleGroup.other, sets: []),
+            BackupWorkoutExercise(exerciseName: 'Squat', muscleGroup: MuscleGroup.legs, sets: []),
+          ]),
+        ], const [
+          BackupExercise(name: 'Dips', muscleGroup: MuscleGroup.arms), // kullanılmayan katalog hareketi
+        ]));
+
+        expect(result.addedExercises, 2);
+        final catalog = await repo.searchExercises('');
+        expect(catalog.map((e) => e.name), ['Dips', 'Şınav', 'Squat']);
+        expect(catalog.firstWhere((e) => e.name == 'Squat').muscleGroup, MuscleGroup.legs);
+
+        final summary = (await repo.getWorkoutSummaries()).single;
+        final detail = (await repo.getWorkoutDetail(summary.workout.id))!;
+        expect(detail.exercises.first.exercise, sinav);
+      });
+
+      test('yedek içinde aynı zamanlı iki antrenman varsa ikincisi atlanır', () async {
+        final at = DateTime(2026, 10, 5, 18);
+        final result = await repo.importBackup(backupOf([workoutAt(at, title: 'A'), workoutAt(at, title: 'B')]));
+
+        expect(result.addedWorkouts, 1);
+        expect(result.skippedWorkouts, 1);
+        expect((await repo.getWorkoutSummaries()).single.workout.title, 'A');
+      });
+
+      test('başlık ve notları diğer metotlardaki kurallarla saklar', () async {
+        await repo.importBackup(backupOf([
+          workoutAt(DateTime(2026, 10, 1), title: '   ', exercises: const [
+            BackupWorkoutExercise(
+              exerciseName: '  Bench Press ',
+              muscleGroup: MuscleGroup.chest,
+              note: '  kolay geldi  ',
+              sets: [BackupSet(weightKg: 0, reps: 12)],
+            ),
+          ]),
+        ]));
+
+        final summary = (await repo.getWorkoutSummaries()).single;
+        final detail = (await repo.getWorkoutDetail(summary.workout.id))!;
+        expect(detail.workout.title, isNull);
+        expect(detail.exercises.single.exercise.name, 'Bench Press');
+        expect(detail.exercises.single.workoutExercise.note, 'kolay geldi');
+        expect(detail.exercises.single.sets.single.setNumber, 1);
+      });
+
+      test('geçersiz veride ArgumentError fırlatır ve hiçbir şey değiştirmez', () async {
+        await seed(repo);
+        final before = describe(await repo.exportBackup());
+
+        final invalidBackups = [
+          backupOf([
+            workoutAt(DateTime(2026, 11, 1)),
+            workoutAt(DateTime(2026, 11, 2), exercises: const [
+              BackupWorkoutExercise(
+                exerciseName: 'Squat',
+                muscleGroup: MuscleGroup.legs,
+                sets: [BackupSet(weightKg: 100, reps: 0)],
+              ),
+            ]),
+          ]),
+          backupOf([
+            workoutAt(DateTime(2026, 11, 3), exercises: const [
+              BackupWorkoutExercise(
+                exerciseName: 'Squat',
+                muscleGroup: MuscleGroup.legs,
+                sets: [BackupSet(weightKg: -5, reps: 5)],
+              ),
+            ]),
+          ]),
+          backupOf([
+            workoutAt(DateTime(2026, 11, 4), exercises: const [
+              BackupWorkoutExercise(exerciseName: '   ', muscleGroup: MuscleGroup.legs, sets: []),
+            ]),
+          ]),
+        ];
+
+        for (final backup in invalidBackups) {
+          await expectLater(repo.importBackup(backup), throwsArgumentError);
+          expect(describe(await repo.exportBackup()), before);
+        }
+      });
+    });
   });
 }
