@@ -211,7 +211,14 @@ Aşamalar sürüm adına ek olarak yazılmaz; Git etiketi ve GitHub Release ile 
 3. `flutter analyze` ve `flutter test` temiz olmalı.
 4. Commit: `Release vX.Y.Z`.
 5. Açıklamalı etiket at ve gönder: `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin main --tags`.
-6. (İsteğe bağlı) GitHub Release oluştur ve APK'yı ekle.
+6. APK'yı derle (`flutter build apk --release`) ve GitHub Release oluştur:
+   `gh release create vX.Y.Z exercise-tracking-app-vX.Y.Z.apk --title vX.Y.Z --notes "<CHANGELOG bölümü>"`
+   (beta için `--prerelease`).
+
+**İmzalama:** Release APK, `android/key.properties` dosyasında adı geçen yayın anahtarıyla imzalanır
+(keystore: `C:\Users\user\keystores\exercise_tracking_app.jks`). İkisi de repo'ya girmez ve **yedeklenmelidir**:
+anahtar kaybolursa yeni sürümler eskinin üstüne kurulamaz, uygulamayı silip yeniden kurmak gerekir.
+`key.properties` yoksa (ör. CI'da) release derlemesi debug anahtarıyla imzalanır; o APK yayınlanmaz.
 
 Eski sürümler silinmez: her etiket o andaki kodun kalıcı adresidir (`git checkout vX.Y.Z` ile geri dönülür,
 GitHub'da etiket sayfasından indirilir).

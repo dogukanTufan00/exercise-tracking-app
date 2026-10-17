@@ -7,6 +7,9 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Değişti
+- Release APK artık yayın anahtarıyla imzalanır; GitHub Release'lere APK eklenir.
+
 ## [0.1.0] - 2026-10-18
 
 İlk sürüm (alfa): uygulamanın temel akışı uçtan uca çalışıyor.
