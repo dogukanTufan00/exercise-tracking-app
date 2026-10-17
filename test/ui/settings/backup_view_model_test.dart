@@ -60,7 +60,7 @@ void main() {
       viewModel.clearError();
       await viewModel.exportJson();
       expect(viewModel.errorMessage, 'Henüz kaydedilmiş veri yok.');
-      expect(files.sharedFiles, isEmpty);
+      expect(files.savedFiles, isEmpty);
     });
 
     test('CSV: tarihli dosya adı, text/csv ve BOM ile başlayan içerik', () async {
@@ -77,18 +77,31 @@ void main() {
       expect(viewModel.errorMessage, isNull);
     });
 
-    test('JSON: tarihli dosya adı, application/json ve geri okunabilir içerik', () async {
+    test('JSON: "Farklı kaydet" ile kaydeder; tarihli ad, application/json, geri okunabilir içerik', () async {
       await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
 
       await viewModel.exportJson();
 
-      final shared = files.sharedFiles.single;
-      expect(shared.fileName, 'antrenman-yedegi-2026-03-05.json');
-      expect(shared.mimeType, 'application/json');
-      final decoded = decodeBackupJson(shared.content);
+      expect(files.sharedFiles, isEmpty);
+      final saved = files.savedFiles.single;
+      expect(saved.fileName, 'antrenman-yedegi-2026-03-05.json');
+      expect(saved.mimeType, 'application/json');
+      final decoded = decodeBackupJson(saved.content);
       expect(decoded.workouts.single.title, 'Göğüs');
       expect(decoded.exercises.single.name, 'Bench');
+      expect(viewModel.message, 'Yedek kaydedildi');
       expect(viewModel.isBusy, isFalse);
+    });
+
+    test('JSON: kullanıcı kaydetmekten vazgeçerse mesaj göstermez', () async {
+      await repository.importBackup(_backupWith(workouts: [_benchWorkout]));
+      files.cancelSave = true;
+
+      await viewModel.exportJson();
+
+      expect(files.savedFiles, isEmpty);
+      expect(viewModel.message, isNull);
+      expect(viewModel.errorMessage, isNull);
     });
   });
 

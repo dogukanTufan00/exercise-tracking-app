@@ -22,6 +22,12 @@ class SharedTextFile {
 class FakeBackupFileService implements BackupFileService {
   final List<SharedTextFile> sharedFiles = [];
 
+  /// "Farklı kaydet" ile kaydedilen dosyalar.
+  final List<SharedTextFile> savedFiles = [];
+
+  /// `true` ise kullanıcı "Farklı kaydet" ekranından vazgeçmiş gibi davranır.
+  bool cancelSave = false;
+
   /// [pickTextFile]'ın döndüreceği metin; `null` = vazgeçildi.
   String? pickResult;
 
@@ -38,6 +44,20 @@ class FakeBackupFileService implements BackupFileService {
     sharedFiles.add(
       SharedTextFile(fileName: fileName, content: content, mimeType: mimeType),
     );
+  }
+
+  @override
+  Future<bool> saveTextFile({
+    required String fileName,
+    required String content,
+    required String mimeType,
+  }) async {
+    await gate?.future;
+    if (cancelSave) return false;
+    savedFiles.add(
+      SharedTextFile(fileName: fileName, content: content, mimeType: mimeType),
+    );
+    return true;
   }
 
   @override

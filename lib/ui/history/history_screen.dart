@@ -43,9 +43,13 @@ class _HistoryView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Ayarlar',
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            ),
+            onPressed: () async {
+              await Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              );
+              // Ayarlar'da yedekten geri yükleme yapılmış olabilir.
+              if (context.mounted) await viewModel.load();
+            },
           ),
         ],
       ),

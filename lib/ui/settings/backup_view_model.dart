@@ -62,7 +62,10 @@ class BackupViewModel extends ChangeNotifier {
     });
   }
 
-  /// Tüm verileri geri yüklenebilir JSON yedeği olarak paylaşır.
+  /// Tüm verileri geri yüklenebilir JSON yedeği olarak, kullanıcının seçtiği konuma kaydeder.
+  ///
+  /// Paylaşım menüsü yerine "Farklı kaydet" kullanılır: amaç bir yere göndermek değil,
+  /// dosyayı telefonda bulunabilir bir yere koymak.
   Future<void> exportJson() {
     return _run(() async {
       final data = await _repository.exportBackup();
@@ -70,11 +73,12 @@ class BackupViewModel extends ChangeNotifier {
         _errorMessage = _noDataMessage;
         return;
       }
-      await _files.shareTextFile(
+      final saved = await _files.saveTextFile(
         fileName: 'antrenman-yedegi-${_dateStamp()}.json',
         content: encodeBackupJson(data),
         mimeType: 'application/json',
       );
+      if (saved) _message = 'Yedek kaydedildi';
     });
   }
 

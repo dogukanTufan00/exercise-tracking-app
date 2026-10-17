@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
@@ -14,6 +15,14 @@ import '../backup/backup_json_codec.dart';
 abstract interface class BackupFileService {
   /// Metni geçici bir dosyaya yazar ve paylaşım menüsünü açar.
   Future<void> shareTextFile({
+    required String fileName,
+    required String content,
+    required String mimeType,
+  });
+
+  /// Sistemin "Farklı kaydet" ekranını açar; kullanıcı konumu seçince metni (UTF-8) oraya yazar.
+  /// Kaydedildiyse `true`, kullanıcı vazgeçtiyse `false`.
+  Future<bool> saveTextFile({
     required String fileName,
     required String content,
     required String mimeType,
@@ -38,6 +47,20 @@ class DeviceBackupFileService implements BackupFileService {
     await SharePlus.instance.share(
       ShareParams(files: [XFile(file.path, mimeType: mimeType)]),
     );
+  }
+
+  @override
+  Future<bool> saveTextFile({
+    required String fileName,
+    required String content,
+    required String mimeType,
+  }) async {
+    final uri = await FilePicker.saveFile(
+      fileName: fileName,
+      bytes: Uint8List.fromList(utf8.encode(content)),
+      mimeType: mimeType,
+    );
+    return uri != null;
   }
 
   @override

@@ -95,7 +95,7 @@ void main() {
     expect(find.text('Yedekten geri yükle'), findsOneWidget);
   });
 
-  testWidgets('Yedek al bir JSON dosyası paylaşır', (tester) async {
+  testWidgets('Yedek al JSON dosyasını kaydeder ve onay gösterir', (tester) async {
     final repository = FakeWorkoutRepository();
     await repository.importBackup(
       BackupData(
@@ -115,10 +115,12 @@ void main() {
     await tester.tap(find.text('Yedek al'));
     await tester.pumpAndSettle();
 
-    expect(files.sharedFiles.length, 1);
-    expect(files.sharedFiles.single.mimeType, 'application/json');
-    expect(files.sharedFiles.single.fileName, endsWith('.json'));
-    expect(decodeBackupJson(files.sharedFiles.single.content).workouts.length, 1);
+    expect(files.sharedFiles, isEmpty);
+    expect(files.savedFiles.length, 1);
+    expect(files.savedFiles.single.mimeType, 'application/json');
+    expect(files.savedFiles.single.fileName, endsWith('.json'));
+    expect(decodeBackupJson(files.savedFiles.single.content).workouts.length, 1);
+    expect(find.text('Yedek kaydedildi'), findsOneWidget);
   });
 
   testWidgets('veri yokken Yedek al hata SnackBar\'ı gösterir', (tester) async {
@@ -128,7 +130,7 @@ void main() {
     await tester.tap(find.text('Yedek al'));
     await tester.pumpAndSettle();
 
-    expect(files.sharedFiles, isEmpty);
+    expect(files.savedFiles, isEmpty);
     expect(find.text('Henüz kaydedilmiş veri yok.'), findsOneWidget);
   });
 

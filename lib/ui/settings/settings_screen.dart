@@ -68,7 +68,7 @@ class _SettingsView extends StatelessWidget {
           _ActionOption(
             icon: Icons.save_alt,
             title: 'Yedek al',
-            description: 'Tüm verilerini tek dosyaya kaydet',
+            description: 'Tüm verilerini telefona tek dosya olarak kaydet',
             color: colorScheme.onSurfaceVariant,
             onTap: backup.isBusy ? null : backup.exportJson,
           ),
