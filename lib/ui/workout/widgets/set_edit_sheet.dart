@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../data/models/models.dart';
 import '../../core/theme/app_spacing.dart';
-import '../../core/widgets/number_stepper.dart';
+import 'weight_reps_steppers.dart';
 
 /// Bir seti düzenlemek için alttan açılan sayfa.
 ///
@@ -51,29 +51,11 @@ class _SetEditSheetState extends State<SetEditSheet> {
               style: textTheme.titleLarge,
             ),
             const SizedBox(height: AppSpacing.lg),
-            Row(
-              children: [
-                Expanded(
-                  child: NumberStepper(
-                    value: _weightKg,
-                    step: 2.5,
-                    unit: 'kg',
-                    label: 'Ağırlık',
-                    onChanged: (v) => setState(() => _weightKg = v),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: NumberStepper(
-                    value: _reps.toDouble(),
-                    step: 1,
-                    min: 1,
-                    allowDecimal: false,
-                    label: 'Tekrar',
-                    onChanged: (v) => setState(() => _reps = v.round()),
-                  ),
-                ),
-              ],
+            WeightRepsSteppers(
+              weightKg: _weightKg,
+              reps: _reps,
+              onWeightChanged: (v) => setState(() => _weightKg = v),
+              onRepsChanged: (v) => setState(() => _reps = v),
             ),
             const SizedBox(height: AppSpacing.xl),
             FilledButton(

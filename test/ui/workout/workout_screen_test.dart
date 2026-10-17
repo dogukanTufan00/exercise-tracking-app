@@ -198,4 +198,74 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Set ekle'), findsOneWidget);
   });
+
+  group('ağırlık/tekrar adımlayıcıları', () {
+    final weightStepper = find.byKey(const ValueKey('weight-stepper'));
+    final repsStepper = find.byKey(const ValueKey('reps-stepper'));
+
+    Future<Workout> createWorkoutWithSet() async {
+      final workout = await repo.createWorkout(title: 'Upper');
+      final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+      final benchWe = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(benchWe.id, weightKg: 102.5, reps: 10);
+      return workout;
+    }
+
+    testWidgets('dar ekranda (360x780, yazı 1.3) alt alta dizilir',
+        (tester) async {
+      final workout = await createWorkoutWithSet();
+
+      await pumpWorkout(
+        tester,
+        workout.id,
+        size: const Size(360, 780),
+        textScale: 1.3,
+      );
+
+      expect(tester.takeException(), isNull);
+      final weightRect = tester.getRect(weightStepper);
+      final repsRect = tester.getRect(repsStepper);
+      expect(repsRect.top, greaterThan(weightRect.bottom));
+      expect(repsRect.left, weightRect.left);
+      expect(repsRect.width, weightRect.width);
+    });
+
+    testWidgets('normal telefonda (411x900, yazı 1.0) yan yana durur',
+        (tester) async {
+      final workout = await createWorkoutWithSet();
+
+      await pumpWorkout(tester, workout.id, size: const Size(411, 900));
+
+      expect(tester.takeException(), isNull);
+      final weightRect = tester.getRect(weightStepper);
+      final repsRect = tester.getRect(repsStepper);
+      expect(repsRect.top, weightRect.top);
+      expect(repsRect.left, greaterThan(weightRect.right));
+    });
+
+    testWidgets('set düzenleme sayfası da dar ekranda alt alta dizilir',
+        (tester) async {
+      final workout = await createWorkoutWithSet();
+
+      await pumpWorkout(
+        tester,
+        workout.id,
+        size: const Size(360, 780),
+        textScale: 1.3,
+      );
+      await tester.tap(find.text('102,5 kg × 10'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Kaydet'), findsOneWidget);
+      final sheet = find.byType(BottomSheet);
+      final weightRect = tester.getRect(
+        find.descendant(of: sheet, matching: weightStepper),
+      );
+      final repsRect = tester.getRect(
+        find.descendant(of: sheet, matching: repsStepper),
+      );
+      expect(repsRect.top, greaterThan(weightRect.bottom));
+    });
+  });
 }

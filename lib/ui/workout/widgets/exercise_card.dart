@@ -5,9 +5,9 @@ import '../../../data/models/models.dart';
 import '../../core/formatters.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/muscle_group_chip.dart';
-import '../../core/widgets/number_stepper.dart';
 import '../workout_view_model.dart';
 import 'set_edit_sheet.dart';
+import 'weight_reps_steppers.dart';
 
 /// Antrenmandaki bir hareketi gösteren kart: setler, "geçen sefer", sıradaki set girişi ve not.
 ///
@@ -258,29 +258,11 @@ class _ExerciseCardState extends State<ExerciseCard> {
           ),
         ),
         const SizedBox(height: AppSpacing.sm),
-        Row(
-          children: [
-            Expanded(
-              child: NumberStepper(
-                value: draft.weightKg,
-                step: 2.5,
-                unit: 'kg',
-                label: 'Ağırlık',
-                onChanged: widget.onDraftWeightChanged,
-              ),
-            ),
-            const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: NumberStepper(
-                value: draft.reps.toDouble(),
-                step: 1,
-                min: 1,
-                allowDecimal: false,
-                label: 'Tekrar',
-                onChanged: (v) => widget.onDraftRepsChanged(v.round()),
-              ),
-            ),
-          ],
+        WeightRepsSteppers(
+          weightKg: draft.weightKg,
+          reps: draft.reps,
+          onWeightChanged: widget.onDraftWeightChanged,
+          onRepsChanged: widget.onDraftRepsChanged,
         ),
         const SizedBox(height: AppSpacing.md),
         Row(
