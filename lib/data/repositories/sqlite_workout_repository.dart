@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../models/models.dart';
 import '../services/database_service.dart';
+import '../utils/text_normalizer.dart';
 import 'workout_repository.dart';
 
 /// [WorkoutRepository] arayüzünün SQLite (sqflite) uygulaması.
@@ -152,17 +153,16 @@ class SqliteWorkoutRepository implements WorkoutRepository {
   @override
   Future<List<Exercise>> searchExercises(String query) async {
     final db = await _db;
-    final trimmed = query.trim();
+    // Katalog küçük olduğu için (birkaç yüz hareket) filtreleme ve sıralama Dart'ta yapılır;
+    // SQLite'ın LIKE/NOCASE'i Türkçe harfleri ve '%' '_' karakterlerini doğru ele almaz.
+    final rows = await db.query('exercises');
+    final needle = normalizeForSearch(query);
 
-    final rows = trimmed.isEmpty
-        ? await db.query('exercises', orderBy: 'name COLLATE NOCASE')
-        : await db.query(
-            'exercises',
-            where: 'name LIKE ? COLLATE NOCASE',
-            whereArgs: ['%$trimmed%'],
-            orderBy: 'name COLLATE NOCASE',
-          );
-    return [for (final row in rows) Exercise.fromMap(row)];
+    final matches = [
+      for (final row in rows) Exercise.fromMap(row),
+    ].where((exercise) => normalizeForSearch(exercise.name).contains(needle)).toList();
+    matches.sort(_compareByName);
+    return matches;
   }
 
   @override
@@ -172,21 +172,21 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     if (cleanName == null) {
       throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
     }
+    final key = normalizeForSearch(cleanName);
 
-    final existing = await db.query(
-      'exercises',
-      columns: ['id'],
-      where: 'name = ? COLLATE NOCASE',
-      whereArgs: [cleanName],
-      limit: 1,
-    );
-    if (existing.isNotEmpty) throw DuplicateExerciseException(cleanName);
+    return db.transaction<Exercise>((txn) async {
+      final existing = await txn.query('exercises', columns: ['name']);
+      final isDuplicate = existing.any(
+        (row) => normalizeForSearch(row['name'] as String) == key,
+      );
+      if (isDuplicate) throw DuplicateExerciseException(cleanName);
 
-    final id = await db.insert('exercises', {
-      'name': cleanName,
-      'muscle_group': muscleGroup.name,
+      final id = await txn.insert('exercises', {
+        'name': cleanName,
+        'muscle_group': muscleGroup.name,
+      });
+      return Exercise(id: id, name: cleanName, muscleGroup: muscleGroup);
     });
-    return Exercise(id: id, name: cleanName, muscleGroup: muscleGroup);
   }
 
   // -------------------------------------------------- Antrenmandaki hareketler
@@ -195,6 +195,9 @@ class SqliteWorkoutRepository implements WorkoutRepository {
   Future<WorkoutExercise> addExerciseToWorkout(int workoutId, int exerciseId) async {
     final db = await _db;
     return db.transaction<WorkoutExercise>((txn) async {
+      await _requireExists(txn, 'workouts', workoutId, 'Antrenman bulunamadı');
+      await _requireExists(txn, 'exercises', exerciseId, 'Hareket bulunamadı');
+
       final rows = await txn.rawQuery(
         'SELECT COALESCE(MAX(position), -1) + 1 AS next_position '
         'FROM workout_exercises WHERE workout_id = ?',
@@ -279,6 +282,13 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     _validateSet(weightKg, reps);
     final db = await _db;
     return db.transaction<ExerciseSet>((txn) async {
+      await _requireExists(
+        txn,
+        'workout_exercises',
+        workoutExerciseId,
+        'Antrenmandaki hareket bulunamadı',
+      );
+
       final rows = await txn.rawQuery(
         'SELECT COALESCE(MAX(set_number), 0) + 1 AS next_number '
         'FROM exercise_sets WHERE workout_exercise_id = ?',
@@ -400,6 +410,23 @@ class SqliteWorkoutRepository implements WorkoutRepository {
   }
 
   // ---------------------------------------------------------------------- Yardımcılar
+
+  /// Kaydın var olduğunu doğrular; yoksa [ArgumentError] fırlatır.
+  Future<void> _requireExists(
+    DatabaseExecutor executor,
+    String table,
+    int id,
+    String message,
+  ) async {
+    final rows = await executor.query(table, columns: ['id'], where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isEmpty) throw ArgumentError.value(id, 'id', message);
+  }
+
+  /// Hareketleri normalleştirilmiş ada, eşitlikte orijinal ada göre karşılaştırır.
+  static int _compareByName(Exercise a, Exercise b) {
+    final byKey = normalizeForSearch(a.name).compareTo(normalizeForSearch(b.name));
+    return byKey != 0 ? byKey : a.name.compareTo(b.name);
+  }
 
   /// Kırpılmış metni döndürür; boşsa `null`.
   String? _cleanText(String? text) {

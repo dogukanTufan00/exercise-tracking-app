@@ -1,5 +1,6 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
+import 'package:exercise_tracking_app/data/utils/text_normalizer.dart';
 
 /// Testler için tamamen bellekte çalışan [WorkoutRepository].
 ///
@@ -75,11 +76,11 @@ class FakeWorkoutRepository implements WorkoutRepository {
 
   @override
   Future<List<Exercise>> searchExercises(String query) async {
-    final needle = query.trim().toLowerCase();
+    final needle = normalizeForSearch(query);
     final found = _exercises.values
-        .where((e) => e.name.toLowerCase().contains(needle))
+        .where((e) => normalizeForSearch(e.name).contains(needle))
         .toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      ..sort(_byNormalizedName);
     return List.unmodifiable(found);
   }
 
@@ -90,8 +91,8 @@ class FakeWorkoutRepository implements WorkoutRepository {
       throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
     }
 
-    final key = cleaned.toLowerCase();
-    if (_exercises.values.any((e) => e.name.toLowerCase() == key)) {
+    final key = normalizeForSearch(cleaned);
+    if (_exercises.values.any((e) => normalizeForSearch(e.name) == key)) {
       throw DuplicateExerciseException(cleaned);
     }
 
@@ -218,6 +219,12 @@ class FakeWorkoutRepository implements WorkoutRepository {
   String? _cleanText(String? text) {
     final trimmed = text?.trim();
     return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
+  }
+
+  /// Hareketler normalleştirilmiş ada göre, eşitlikte orijinal ada göre sıralanır.
+  static int _byNormalizedName(Exercise a, Exercise b) {
+    final byKey = normalizeForSearch(a.name).compareTo(normalizeForSearch(b.name));
+    return byKey != 0 ? byKey : a.name.compareTo(b.name);
   }
 
   /// Yeniden eskiye; aynı zamanda iki antrenman varsa daha yeni id önce.

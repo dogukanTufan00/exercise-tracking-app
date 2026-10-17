@@ -8,6 +8,7 @@ import '../models/models.dart';
 ///
 /// Ortak kurallar:
 /// - Var olmayan bir id ile yapılan güncelleme/silme işlemleri sessizce hiçbir şey yapmaz.
+///   Ekleme işlemlerinde ise üst kayıt (antrenman, hareket) yoksa [ArgumentError] fırlatılır.
 /// - Boş ya da yalnızca boşluktan oluşan metinler (başlık, not) `null` olarak saklanır;
 ///   metinlerin başındaki/sonundaki boşluklar kırpılır.
 abstract interface class WorkoutRepository {
@@ -30,19 +31,26 @@ abstract interface class WorkoutRepository {
 
   // ------------------------------------------------------------- Hareket kataloğu
 
-  /// Adında [query] geçen hareketler, ada göre A→Z. Hem arama hem sıralama
-  /// büyük/küçük harf duyarsızdır. [query] boşsa tüm katalog döner.
+  /// Adının normalleştirilmiş hali, [query]'nin normalleştirilmiş halini içeren hareketler.
+  /// Normalleştirme için `normalizeForSearch` (lib/data/utils/text_normalizer.dart) kullanılır;
+  /// böylece "sinav" araması "Şınav"ı bulur. `%` ve `_` gibi karakterler özel anlam taşımaz.
+  ///
+  /// Sıralama: normalleştirilmiş ada göre A→Z, eşitlikte orijinal ada göre.
+  /// [query] boşsa (ya da yalnızca boşluksa) tüm katalog döner.
   Future<List<Exercise>> searchExercises(String query);
 
-  /// Kataloğa yeni hareket ekler.
+  /// Kataloğa yeni hareket ekler. Ad kırpılarak saklanır.
   ///
-  /// Aynı adda (büyük/küçük harf duyarsız) bir hareket zaten varsa
-  /// [DuplicateExerciseException] fırlatır. Ad boşsa [ArgumentError] fırlatır.
+  /// Normalleştirilmiş adı (`normalizeForSearch`) mevcut bir hareketinkiyle aynıysa
+  /// [DuplicateExerciseException] fırlatır ("Şınav" ile "SINAV" aynı sayılır).
+  /// Ad boşsa [ArgumentError] fırlatır.
   Future<Exercise> createExercise(String name, MuscleGroup muscleGroup);
 
   // -------------------------------------------------- Antrenmandaki hareketler
 
   /// Katalogdaki bir hareketi antrenmanın sonuna ekler.
+  ///
+  /// Antrenman ya da hareket yoksa [ArgumentError] fırlatır.
   Future<WorkoutExercise> addExerciseToWorkout(int workoutId, int exerciseId);
 
   /// Hareketin notunu değiştirir; `null` ya da boş metin notu kaldırır.
@@ -56,7 +64,7 @@ abstract interface class WorkoutRepository {
 
   /// Harekete yeni set ekler; set numarası mevcut en büyük numaranın bir fazlasıdır.
   ///
-  /// [weightKg] < 0 ya da [reps] <= 0 ise [ArgumentError] fırlatır.
+  /// [weightKg] < 0 ya da [reps] <= 0 ise, ya da [workoutExerciseId] yoksa [ArgumentError] fırlatır.
   Future<ExerciseSet> addSet(
     int workoutExerciseId, {
     required double weightKg,

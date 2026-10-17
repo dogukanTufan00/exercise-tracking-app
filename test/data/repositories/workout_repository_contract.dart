@@ -190,6 +190,50 @@ void runWorkoutRepositoryContractTests(
         expect(found.map((e) => e.name), ['Bench Press', 'Incline Bench']);
         expect(await repo.searchExercises('xyz'), isEmpty);
       });
+
+      test('searchExercises Türkçe harfleri sadeleştirerek arar', () async {
+        final sinav = await exercise('Şınav');
+        final incline = await exercise('İncline Press');
+        await exercise('Barfiks', MuscleGroup.back);
+
+        for (final query in ['sinav', 'ŞINAV', 'şın', 'SIN']) {
+          expect(await repo.searchExercises(query), [sinav], reason: query);
+        }
+        for (final query in ['incline', 'INCLINE', 'İnc']) {
+          expect(await repo.searchExercises(query), [incline], reason: query);
+        }
+      });
+
+      test('searchExercises Türkçe harfleri sadeleştirilmiş haliyle sıralar', () async {
+        await exercise('Dips');
+        await exercise('Çekiş', MuscleGroup.back);
+        await exercise('Barfiks', MuscleGroup.back);
+
+        final all = await repo.searchExercises('');
+
+        expect(all.map((e) => e.name), ['Barfiks', 'Çekiş', 'Dips']);
+      });
+
+      test('searchExercises % ve _ karakterlerini joker olarak yorumlamaz', () async {
+        await exercise('Squat', MuscleGroup.legs);
+        final percent = await exercise('Squat %90');
+
+        expect(await repo.searchExercises('%'), [percent]);
+        expect(await repo.searchExercises('_'), isEmpty);
+      });
+
+      test('createExercise Türkçe harf ve boşluk farkını aynı ad sayar', () async {
+        await exercise('Şınav');
+        await exercise('Bench Press');
+
+        for (final name in ['şınav', 'SINAV', 'sinav', 'Bench   Press']) {
+          await expectLater(
+            repo.createExercise(name, MuscleGroup.chest),
+            throwsA(isA<DuplicateExerciseException>()),
+            reason: name,
+          );
+        }
+      });
     });
 
     group('antrenmandaki hareketler', () {
@@ -252,6 +296,15 @@ void runWorkoutRepositoryContractTests(
         final detail = (await repo.getWorkoutDetail(workout.id))!;
         expect(detail.exercises, hasLength(2));
       });
+
+      test('addExerciseToWorkout olmayan antrenman ya da hareket için ArgumentError fırlatır', () async {
+        final workout = await repo.createWorkout();
+        final bench = await exercise('Bench Press');
+
+        await expectLater(repo.addExerciseToWorkout(999, bench.id), throwsArgumentError);
+        await expectLater(repo.addExerciseToWorkout(workout.id, 999), throwsArgumentError);
+        expect((await repo.getWorkoutDetail(workout.id))!.exercises, isEmpty);
+      });
     });
 
     group('setler', () {
@@ -286,6 +339,10 @@ void runWorkoutRepositoryContractTests(
 
         expect(() => repo.addSet(we.id, weightKg: -1, reps: 10), throwsArgumentError);
         expect(() => repo.addSet(we.id, weightKg: 60, reps: 0), throwsArgumentError);
+      });
+
+      test('addSet olmayan antrenman hareketi için ArgumentError fırlatır', () async {
+        await expectLater(repo.addSet(999, weightKg: 60, reps: 10), throwsArgumentError);
       });
 
       test('updateSet ağırlık ve tekrarı günceller, geçersiz değeri reddeder', () async {
