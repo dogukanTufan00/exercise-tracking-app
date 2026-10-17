@@ -1,30 +1,30 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:exercise_tracking_app/main.dart';
+import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
+import 'package:exercise_tracking_app/ui/history/history_screen.dart';
+
+import 'fakes/fake_settings_repository.dart';
+import 'fakes/fake_workout_repository.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  setUpAll(() => initializeDateFormatting('tr'));
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('uygulama açılışta Geçmiş ekranını gösterir', (tester) async {
+    final settingsRepository = FakeSettingsRepository();
+    final themeController = ThemeController(settingsRepository);
+    await themeController.load();
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    await tester.pumpWidget(
+      ExerciseTrackerApp(
+        workoutRepository: FakeWorkoutRepository(),
+        settingsRepository: settingsRepository,
+        themeController: themeController,
+      ),
+    );
+    await tester.pumpAndSettle();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.byType(HistoryScreen), findsOneWidget);
   });
 }

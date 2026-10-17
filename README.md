@@ -7,18 +7,17 @@
 A gym workout logger for Android (iOS-ready), built with Flutter. Log your exercises, sets, weights and
 reps, add notes on how each exercise felt, and see what you lifted last time.
 
-> **Status:** work in progress. The data layer, theme system and shared widgets are done;
-> the screens are being built next. [Türkçe açıklama aşağıda.](#türkçe)
+> **Status:** MVP complete, being tested on a real device. [Türkçe açıklama aşağıda.](#türkçe)
 
 ## Features
 
+- [x] Workout history list with exercise/set counts and muscle groups
+- [x] Workout screen: sets with ± weight/reps steppers, "repeat set", per-exercise notes
+- [x] "Last time" hint: the sets you did for the same exercise in your previous workout
 - [x] Exercise catalog with muscle groups and Turkish-aware search ("sinav" finds "Şınav")
-- [x] Offline-first local storage (SQLite)
-- [x] Four color themes (dark orange, red/black, yellow/navy, light blue)
-- [ ] Workout history list
-- [ ] Workout screen: sets with ± weight/reps steppers, "repeat set", per-exercise notes
-- [ ] "Last time" hint: the sets you did for the same exercise in your previous workout
-- [ ] Theme picker
+- [x] Offline-first local storage (SQLite); changes are saved instantly
+- [x] Four color themes with a theme picker (dark orange, red/black, yellow/navy, light blue)
+- [ ] Progress charts and personal records (planned)
 
 ## Tech stack
 

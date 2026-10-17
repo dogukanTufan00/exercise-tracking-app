@@ -24,6 +24,64 @@ Mimar/orkestratör (Claude Opus) işi parçalara böler, her ajana bir talimat v
 7. **Bitirdiğinde rapor ver:** oluşturduğun/değiştirdiğin dosyalar, `analyze` ve `test` çıktılarının son satırları
    (aynen), varsa emin olmadığın kararlar ve sözleşmeyle ilgili notlar.
 
+## Dalga 2 ortak kuralları (ekranlar)
+
+**Uygulamada hazır olanlar** (değiştirme, kullan):
+- Veri: `WorkoutRepository` arayüzü, modeller (`lib/data/models/models.dart`), `normalizeForSearch`.
+- Tema: `buildAppTheme(AppThemeId)`, `AppPalette.of(id)`, `AppSpacing`.
+- Bileşenler: `NumberStepper`, `MuscleGroupChip`, `EmptyState` (`lib/ui/core/widgets/`).
+- Biçimlendiriciler: `formatWeight`, `formatSet`, `formatWorkoutDate`, `parseDecimal` (`lib/ui/core/formatters.dart`).
+- Testler için: `FakeWorkoutRepository` (`test/fakes/fake_workout_repository.dart`).
+Bunların dosyalarını açıp imzalarını oku; tahmin etme.
+
+**Sağlayıcılar (provider):** `main.dart` ağacın en üstüne şunları koyar:
+`Provider<WorkoutRepository>`, `Provider<SettingsRepository>`, `ChangeNotifierProvider<ThemeController>`.
+Ekranlar repository'yi `context.read<WorkoutRepository>()` ile alır.
+
+**Ekran deseni (MVVM):**
+```dart
+class XScreen extends StatelessWidget {
+  const XScreen({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (context) => XViewModel(context.read<WorkoutRepository>())..load(),
+      child: const _XView(),
+    );
+  }
+}
+```
+- ViewModel `ChangeNotifier`'dır; durumu private alanlarda tutar, getter'larla açar; `isLoading` ve
+  `String? errorMessage` alanları vardır. Repository hatalarını yakalar, `errorMessage`'a Türkçe mesaj yazar;
+  ekran bunu `SnackBar` ile gösterir ve `clearError()` çağırır.
+- `await` sonrası `notifyListeners()` çağırmadan önce ViewModel'in dispose edilmediğini kontrol et
+  (`bool _disposed`, `dispose()` içinde `true`).
+- ViewModel Flutter widget'larını import etmez (`package:flutter/foundation.dart` yeterli).
+
+**Ekranlar arası sözleşme (iskeletler hazır; kurucu imzalarını DEĞİŞTİRME):**
+| Ekran | Dosya | Kurucu | Nasıl açılır / ne döner |
+|---|---|---|---|
+| Geçmiş | `lib/ui/history/history_screen.dart` | `HistoryScreen()` | Açılış ekranı |
+| Antrenman | `lib/ui/workout/workout_screen.dart` | `WorkoutScreen(workoutId: int)` | `Navigator.push`; kapanınca çağıran listeyi yeniler |
+| Hareket seç | `lib/ui/exercise_picker/exercise_picker_screen.dart` | `ExercisePickerScreen()` | `Navigator.push<Exercise>`; seçilen hareketle `pop` eder, geri dönülürse `null` |
+| Ayarlar | `lib/ui/settings/settings_screen.dart` | `SettingsScreen()` | Geçmiş ekranındaki ayarlar ikonundan |
+
+**Arayüz kuralları:** `docs/DESIGN.md`'ye uy. Renk/yazı yalnızca `Theme.of(context)` üzerinden;
+boşluklar `AppSpacing` ile; dokunulabilir her şey en az 48 px; ekranda **en fazla bir** `FilledButton`;
+kullanıcıya görünen tüm metinler Türkçe.
+
+**Testler:** ViewModel testleri `FakeWorkoutRepository` ile; widget testleri şöyle sarılır:
+```dart
+setUpAll(() => initializeDateFormatting('tr'));
+await tester.pumpWidget(
+  Provider<WorkoutRepository>.value(
+    value: repository,
+    child: MaterialApp(theme: buildAppTheme(AppThemeId.darkOrange), home: const XScreen()),
+  ),
+);
+await tester.pumpAndSettle();
+```
+
 ## Dalgalar
 
 | Dalga | Ajan | Görev |
@@ -32,3 +90,7 @@ Mimar/orkestratör (Claude Opus) işi parçalara böler, her ajana bir talimat v
 | 1 | B | [Sahte (bellek içi) repository](wave1-b-fake-repository.md) |
 | 1 | C | [Tema sistemi + ayarlar repository](wave1-c-theme-settings.md) |
 | 1 | D | [Ortak bileşenler + biçimlendiriciler](wave1-d-common-widgets.md) |
+| 2 | E | [Geçmiş ekranı](wave2-e-history.md) |
+| 2 | F | [Antrenman ekranı](wave2-f-workout.md) |
+| 2 | G | [Hareket seç ekranı](wave2-g-exercise-picker.md) |
+| 2 | H | [Ayarlar ekranı + uygulama girişi (main.dart)](wave2-h-settings-app.md) |
