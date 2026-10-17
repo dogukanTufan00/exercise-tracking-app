@@ -188,3 +188,32 @@ Ayarlar > Veriler ──► BackupViewModel ──► WorkoutRepository.exportBa
   (ya hep ya hiç).
 - `BackupFileService` platforma bağlı tek parçadır; testlerde sahtesi kullanılır, mantığın tamamı ViewModel'dedir.
 - JSON biçimi değişirse `BackupData.currentFormatVersion` artırılır ve eski sürümleri okuma desteği korunur.
+
+## 11. Sürümleme ve yayın
+
+Sürüm `pubspec.yaml` içindeki `version: X.Y.Z+N` satırındadır:
+
+- **`X.Y.Z` (sürüm adı, kullanıcının gördüğü):** [Semantic Versioning](https://semver.org/lang/tr/).
+  - `Z` (yama): yalnızca hata düzeltmesi.
+  - `Y` (küçük): yeni özellik; eski veri ve yedekler çalışmaya devam eder.
+  - `X` (büyük): uyumsuz değişiklik. `0.x` dönemindeyiz: uygulama alfa/beta aşamasında, her şey değişebilir.
+    `1.0.0` mağazaya çıkan ilk kararlı sürüm olacak.
+- **`+N` (yapı numarası):** her yayında 1 artar, **hiç geri dönmez ve sıfırlanmaz** (Play Store / App Store
+  aynı numarayı ikinci kez kabul etmez).
+
+Aşamalar sürüm adına ek olarak yazılmaz; Git etiketi ve GitHub Release ile gösterilir:
+`v0.2.0-beta.1` gibi bir etiket ve GitHub'da "Pre-release" işareti.
+
+**Yayın adımları:**
+
+1. `CHANGELOG.md` içindeki `[Yayınlanmamış]` başlığı altındakileri yeni sürüm başlığına taşı.
+2. `pubspec.yaml` sürümünü güncelle (`X.Y.Z` kurala göre, `+N` bir artır).
+3. `flutter analyze` ve `flutter test` temiz olmalı.
+4. Commit: `Release vX.Y.Z`.
+5. Açıklamalı etiket at ve gönder: `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin main --tags`.
+6. (İsteğe bağlı) GitHub Release oluştur ve APK'yı ekle.
+
+Eski sürümler silinmez: her etiket o andaki kodun kalıcı adresidir (`git checkout vX.Y.Z` ile geri dönülür,
+GitHub'da etiket sayfasından indirilir).
+
+Gündelik commit'lerde sürüm değişmez; yalnızca `CHANGELOG.md` → `[Yayınlanmamış]` başlığına satır eklenir.
