@@ -18,12 +18,19 @@ void main() {
     repo = FakeWorkoutRepository();
   });
 
-  Future<void> pumpWorkout(WidgetTester tester, int workoutId) async {
-    // Hareket kartı ve düğmeler tek ekranda görünsün diye yüzeyi büyütür.
-    tester.view.physicalSize = const Size(800, 1600);
+  Future<void> pumpWorkout(
+    WidgetTester tester,
+    int workoutId, {
+    Size size = const Size(800, 1600),
+    double textScale = 1.0,
+  }) async {
+    // Hareket kartı ve düğmeler tek ekranda görünsün diye yüzeyi büyütür (varsayılan).
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    tester.platformDispatcher.textScaleFactorTestValue = textScale;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
 
     await tester.pumpWidget(
       Provider<WorkoutRepository>.value(
@@ -121,5 +128,74 @@ void main() {
     expect(find.text('Antrenman adı'), findsOneWidget);
     expect(find.text('Kaydet'), findsOneWidget);
     expect(find.text('İptal'), findsOneWidget);
+  });
+
+  testWidgets('kapalı kartta özet görünür ve Set ekle görünmez', (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    final squat = await repo.createExercise('Squat', MuscleGroup.legs);
+    final benchWe = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.addSet(benchWe.id, weightKg: 10, reps: 10);
+    await repo.addSet(benchWe.id, weightKg: 15, reps: 10);
+    await repo.addSet(benchWe.id, weightKg: 12, reps: 12);
+    await repo.addExerciseToWorkout(workout.id, squat.id);
+
+    await pumpWorkout(tester, workout.id);
+
+    // Yalnızca son kart (Squat) açık; bench'in özeti var, "Set ekle" tek.
+    expect(find.text('3 set · 15 kg × 10'), findsOneWidget);
+    expect(find.text('Set ekle'), findsOneWidget);
+  });
+
+  testWidgets('başlığa dokununca kapalı kart açılır', (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    final squat = await repo.createExercise('Squat', MuscleGroup.legs);
+    final benchWe = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.addSet(benchWe.id, weightKg: 15, reps: 10);
+    await repo.addExerciseToWorkout(workout.id, squat.id);
+
+    await pumpWorkout(tester, workout.id);
+    await tester.tap(find.text('Bench Press'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 set · 15 kg × 10'), findsNothing);
+    expect(find.text('Set ekle'), findsNWidgets(2));
+  });
+
+  testWidgets('setsiz kapalı kartta "Henüz set yok" ve not ikonu görünür',
+      (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    final squat = await repo.createExercise('Squat', MuscleGroup.legs);
+    final benchWe = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.updateExerciseNote(benchWe.id, 'Formum bozuldu');
+    await repo.addExerciseToWorkout(workout.id, squat.id);
+
+    await pumpWorkout(tester, workout.id);
+
+    expect(find.text('Henüz set yok'), findsOneWidget);
+    expect(find.byIcon(Icons.sticky_note_2_outlined), findsOneWidget);
+  });
+
+  testWidgets('telefon boyutunda (360x780, yazı 1.3) kartlar taşmaz',
+      (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    final squat = await repo.createExercise('Squat', MuscleGroup.legs);
+    final benchWe = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.addSet(benchWe.id, weightKg: 60, reps: 10);
+    await repo.addSet(benchWe.id, weightKg: 62.5, reps: 8);
+    await repo.addExerciseToWorkout(workout.id, squat.id);
+
+    await pumpWorkout(
+      tester,
+      workout.id,
+      size: const Size(360, 780),
+      textScale: 1.3,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Set ekle'), findsOneWidget);
   });
 }

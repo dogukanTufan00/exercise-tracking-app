@@ -115,6 +115,9 @@ class _WorkoutView extends StatelessWidget {
               entry: entry,
               previousSets: vm.previousSetsFor(entry.exercise.id),
               draft: vm.draftFor(entry.workoutExercise.id),
+              expanded: vm.isExpanded(entry.workoutExercise.id),
+              onToggleExpanded: () =>
+                  vm.toggleExpanded(entry.workoutExercise.id),
               onRemove: () => vm.removeExercise(entry.workoutExercise.id),
               onDraftWeightChanged: (kg) =>
                   vm.setDraftWeight(entry.workoutExercise.id, kg),

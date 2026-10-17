@@ -45,6 +45,12 @@ class WorkoutViewModel extends ChangeNotifier {
   final Map<int, String> _pendingNotes = {};
   final Map<int, Timer> _noteTimers = {};
 
+  /// Açık olan hareketlerin (workoutExercise) id'leri. Kartlar bağımsız açılıp kapanır.
+  final Set<int> _expanded = {};
+
+  /// İlk başarılı yüklemede "son hareket açık" kuralı uygulandı mı.
+  bool _initialExpansionDone = false;
+
   // ----------------------------------------------------------------- Okuma
 
   /// Yüklenene kadar null; antrenman silinmişse de null.
@@ -69,6 +75,17 @@ class WorkoutViewModel extends ChangeNotifier {
         formatWorkoutDate(current.workout.startedAt);
   }
 
+  /// Hareket kartı açık mı (antrenmandaki hareket id'sine göre).
+  bool isExpanded(int workoutExerciseId) => _expanded.contains(workoutExerciseId);
+
+  /// Hareket kartını açar ya da kapatır.
+  void toggleExpanded(int workoutExerciseId) {
+    if (!_expanded.remove(workoutExerciseId)) {
+      _expanded.add(workoutExerciseId);
+    }
+    _notify();
+  }
+
   /// Hareketin bir önceki antrenmandaki setleri; yoksa boş liste.
   List<ExerciseSet> previousSetsFor(int exerciseId) {
     return _previousSets[exerciseId] ?? const <ExerciseSet>[];
@@ -91,6 +108,7 @@ class WorkoutViewModel extends ChangeNotifier {
     _notify();
     try {
       await _reloadAll();
+      if (!_initialExpansionDone) _expandLastOnFirstLoad();
     } catch (_) {
       _errorMessage = 'Antrenman yüklenemedi.';
     } finally {
@@ -110,7 +128,10 @@ class WorkoutViewModel extends ChangeNotifier {
 
   Future<void> addExercise(Exercise exercise) async {
     await _run('Hareket eklenemedi.', () async {
-      await _repository.addExerciseToWorkout(_workoutId, exercise.id);
+      final added =
+          await _repository.addExerciseToWorkout(_workoutId, exercise.id);
+      // Yeni eklenen hareket otomatik açık gelir; diğerlerinin durumu değişmez.
+      _expanded.add(added.id);
       _previousSets[exercise.id] = await _repository.getPreviousSets(
         exercise.id,
         beforeWorkoutId: _workoutId,
@@ -122,6 +143,7 @@ class WorkoutViewModel extends ChangeNotifier {
   Future<void> removeExercise(int workoutExerciseId) async {
     _cancelNote(workoutExerciseId);
     _drafts.remove(workoutExerciseId);
+    _expanded.remove(workoutExerciseId);
     await _run('Hareket kaldırılamadı.', () async {
       await _repository.removeExerciseFromWorkout(workoutExerciseId);
       await _reload();
@@ -300,6 +322,18 @@ class WorkoutViewModel extends ChangeNotifier {
       if (entry.workoutExercise.id == workoutExerciseId) return entry;
     }
     return null;
+  }
+
+  /// İlk yüklemede yalnızca en son (en büyük position) hareketi açar.
+  void _expandLastOnFirstLoad() {
+    _initialExpansionDone = true;
+    final exercises = _detail?.exercises;
+    if (exercises == null || exercises.isEmpty) return;
+
+    final last = exercises.reduce(
+      (a, b) => a.workoutExercise.position >= b.workoutExercise.position ? a : b,
+    );
+    _expanded.add(last.workoutExercise.id);
   }
 
   void _cancelNote(int workoutExerciseId) {

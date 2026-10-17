@@ -294,4 +294,76 @@ void main() {
       vm.dispose();
     });
   });
+
+  group('katlanabilir kartlar', () {
+    test('ilk yüklemede yalnızca son hareket açık', () async {
+      final workout = await repo.createWorkout();
+      final first = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final second = await repo.addExerciseToWorkout(workout.id, squat.id);
+
+      final vm = await loadedVm(workout.id);
+
+      expect(vm.isExpanded(first.id), isFalse);
+      expect(vm.isExpanded(second.id), isTrue);
+      vm.dispose();
+    });
+
+    test('toggleExpanded kartı açar, kapatır ve bildirir', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+      var notifications = 0;
+      vm.addListener(() => notifications++);
+
+      expect(vm.isExpanded(we.id), isTrue);
+      vm.toggleExpanded(we.id);
+      expect(vm.isExpanded(we.id), isFalse);
+      vm.toggleExpanded(we.id);
+      expect(vm.isExpanded(we.id), isTrue);
+      expect(notifications, 2);
+      vm.dispose();
+    });
+
+    test('set ekleme ve yeniden yükleme açık/kapalı durumunu değiştirmez', () async {
+      final workout = await repo.createWorkout();
+      final first = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final second = await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+
+      vm.toggleExpanded(first.id);
+      vm.toggleExpanded(second.id);
+      await vm.addSet(first.id);
+      await vm.load();
+
+      expect(vm.isExpanded(first.id), isTrue);
+      expect(vm.isExpanded(second.id), isFalse);
+      vm.dispose();
+    });
+
+    test('addExercise yeni hareketi açar, diğerlerini değiştirmez', () async {
+      final workout = await repo.createWorkout();
+      final first = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+      vm.toggleExpanded(first.id);
+
+      await vm.addExercise(squat);
+
+      final newId = vm.detail!.exercises.last.workoutExercise.id;
+      expect(vm.isExpanded(newId), isTrue);
+      expect(vm.isExpanded(first.id), isFalse);
+      vm.dispose();
+    });
+
+    test('removeExercise hareketin açık durumunu da siler', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+      expect(vm.isExpanded(we.id), isTrue);
+
+      await vm.removeExercise(we.id);
+
+      expect(vm.isExpanded(we.id), isFalse);
+      vm.dispose();
+    });
+  });
 }

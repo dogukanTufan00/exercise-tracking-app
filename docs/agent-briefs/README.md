@@ -94,3 +94,4 @@ await tester.pumpAndSettle();
 | 2 | F | [Antrenman ekranı](wave2-f-workout.md) |
 | 2 | G | [Hareket seç ekranı](wave2-g-exercise-picker.md) |
 | 2 | H | [Ayarlar ekranı + uygulama girişi (main.dart)](wave2-h-settings-app.md) |
+| 3 | I | [Katlanabilir hareket kartları + stepper taşma düzeltmesi](wave3-i-collapsible-cards.md) |

@@ -67,7 +67,6 @@ class NumberStepper extends StatelessWidget {
         ),
         clipBehavior: Clip.antiAlias,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
               icon: const Icon(Icons.remove),
@@ -81,35 +80,41 @@ class NumberStepper extends StatelessWidget {
                     }
                   : null,
             ),
-            InkWell(
-              onTap: () => _editValue(context),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  minWidth: 72,
-                  minHeight: AppSpacing.minTouchTarget,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        valueText,
-                        style: textTheme.titleLarge?.copyWith(
-                          color: colorScheme.onSurface,
+            Expanded(
+              child: InkWell(
+                onTap: () => _editValue(context),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: AppSpacing.minTouchTarget,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                    // Dar alanda değer ve birim küçülerek sığar; taşmaz.
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              valueText,
+                              style: textTheme.titleLarge?.copyWith(
+                                color: colorScheme.onSurface,
+                              ),
+                            ),
+                            if (unit != null) ...[
+                              const SizedBox(width: AppSpacing.xs),
+                              Text(
+                                unit!,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
-                      if (unit != null) ...[
-                        const SizedBox(width: AppSpacing.xs),
-                        Text(
-                          unit!,
-                          style: textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),

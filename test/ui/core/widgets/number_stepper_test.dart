@@ -127,4 +127,51 @@ void main() {
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(received, isNull);
   });
+
+  testWidgets('telefon boyutunda yan yana iki stepper taşmaz', (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(useMaterial3: true),
+        home: Scaffold(
+          body: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: NumberStepper(
+                    value: 60,
+                    step: 2.5,
+                    unit: 'kg',
+                    label: 'Ağırlık',
+                    onChanged: (_) {},
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: NumberStepper(
+                    value: 10,
+                    step: 1,
+                    min: 1,
+                    allowDecimal: false,
+                    label: 'Tekrar',
+                    onChanged: (_) {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.byIcon(Icons.add), findsNWidgets(2));
+  });
 }

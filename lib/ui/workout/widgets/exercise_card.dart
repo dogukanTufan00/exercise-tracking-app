@@ -10,12 +10,17 @@ import '../workout_view_model.dart';
 import 'set_edit_sheet.dart';
 
 /// Antrenmandaki bir hareketi gösteren kart: setler, "geçen sefer", sıradaki set girişi ve not.
+///
+/// Kart açılıp kapanabilir. Kapalıyken başlığın altında tek satır özet görünür;
+/// açıkken tüm içerik görünür.
 class ExerciseCard extends StatefulWidget {
   const ExerciseCard({
     super.key,
     required this.entry,
     required this.previousSets,
     required this.draft,
+    required this.expanded,
+    required this.onToggleExpanded,
     required this.onRemove,
     required this.onDraftWeightChanged,
     required this.onDraftRepsChanged,
@@ -35,6 +40,12 @@ class ExerciseCard extends StatefulWidget {
   /// Sıradaki set için taslak değerler.
   final SetDraft draft;
 
+  /// Kart açık mı; kapalıyken yalnızca başlık ve özet görünür.
+  final bool expanded;
+
+  /// Başlığa ya da açma/kapama okuna dokunulunca çalışır.
+  final VoidCallback onToggleExpanded;
+
   final VoidCallback onRemove;
   final ValueChanged<double> onDraftWeightChanged;
   final ValueChanged<int> onDraftRepsChanged;
@@ -49,6 +60,7 @@ class ExerciseCard extends StatefulWidget {
 }
 
 class _ExerciseCardState extends State<ExerciseCard> {
+  /// Not alanının denetleyicisi State'te yaşar; kart kapanıp açılsa da yazılan not kaybolmaz.
   late final TextEditingController _noteController;
 
   @override
@@ -100,10 +112,7 @@ class _ExerciseCardState extends State<ExerciseCard> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colorScheme = Theme.of(context).colorScheme;
     final exercise = widget.entry.exercise;
-    final sets = widget.entry.sets;
-    final draft = widget.draft;
 
     return Card(
       child: Padding(
@@ -115,15 +124,38 @@ class _ExerciseCardState extends State<ExerciseCard> {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    exercise.name,
-                    style: textTheme.titleMedium,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  child: InkWell(
+                    onTap: widget.onToggleExpanded,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: AppSpacing.minTouchTarget,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              exercise.name,
+                              style: textTheme.titleMedium,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          MuscleGroupChip(group: exercise.muscleGroup),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-                const SizedBox(width: AppSpacing.sm),
-                MuscleGroupChip(group: exercise.muscleGroup),
+                IconButton(
+                  icon: AnimatedRotation(
+                    turns: widget.expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: const Icon(Icons.expand_more),
+                  ),
+                  tooltip: widget.expanded ? 'Daralt' : 'Genişlet',
+                  onPressed: widget.onToggleExpanded,
+                ),
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   tooltip: 'Seçenekler',
@@ -139,97 +171,169 @@ class _ExerciseCardState extends State<ExerciseCard> {
                 ),
               ],
             ),
-            if (widget.previousSets.isNotEmpty) ...[
-              const SizedBox(height: AppSpacing.xs),
-              Text(
-                'Geçen sefer: ${widget.previousSets.map((s) => formatSet(s.weightKg, s.reps)).join(', ')}',
-                style: textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.md),
-            for (final set in sets)
-              _SetRow(
-                key: ValueKey('set-${set.id}'),
-                set: set,
-                onTap: () => _openEditSheet(set),
-                onDelete: () => widget.onDeleteSet(set.id),
-              ),
-            if (sets.isNotEmpty) const SizedBox(height: AppSpacing.sm),
-            Text(
-              '${sets.length + 1}. set',
-              style: textTheme.bodySmall?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Row(
-              children: [
-                Expanded(
-                  child: NumberStepper(
-                    value: draft.weightKg,
-                    step: 2.5,
-                    unit: 'kg',
-                    label: 'Ağırlık',
-                    onChanged: widget.onDraftWeightChanged,
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: NumberStepper(
-                    value: draft.reps.toDouble(),
-                    step: 1,
-                    min: 1,
-                    allowDecimal: false,
-                    label: 'Tekrar',
-                    onChanged: (v) => widget.onDraftRepsChanged(v.round()),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: sets.isEmpty ? null : widget.onRepeatLastSet,
-                    icon: const Icon(Icons.replay),
-                    label: const Text('Seti tekrarla'),
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: colorScheme.primary,
-                      side: BorderSide(color: colorScheme.primary),
-                    ),
-                    onPressed: () {
-                      HapticFeedback.lightImpact();
-                      widget.onAddSet();
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Set ekle'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: AppSpacing.md),
-            TextField(
-              controller: _noteController,
-              minLines: 1,
-              maxLines: 4,
-              decoration: const InputDecoration(
-                hintText: 'Not ekle (ör. 2. sette formum bozuldu)',
-              ),
-              onChanged: widget.onNoteChanged,
+            AnimatedSize(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              alignment: Alignment.topCenter,
+              child: widget.expanded ? _buildDetails(context) : _buildSummary(context),
             ),
           ],
         ),
       ),
     );
   }
+
+  /// Kapalıyken başlığın altında görünen tek satırlık özet.
+  Widget _buildSummary(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final sets = widget.entry.sets;
+    final hasNote = _noteController.text.trim().isNotEmpty;
+
+    final summary = sets.isEmpty
+        ? 'Henüz set yok'
+        : '${sets.length} set · ${_heaviestSummary(sets)}';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              summary,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (hasNote) ...[
+            const SizedBox(width: AppSpacing.sm),
+            Semantics(
+              label: 'Not var',
+              child: Icon(
+                Icons.sticky_note_2_outlined,
+                size: 18,
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Açıkken görünen tam içerik: geçen sefer, setler, sıradaki set girişi, butonlar ve not.
+  Widget _buildDetails(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final sets = widget.entry.sets;
+    final draft = widget.draft;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (widget.previousSets.isNotEmpty) ...[
+          const SizedBox(height: AppSpacing.xs),
+          Text(
+            'Geçen sefer: ${widget.previousSets.map((s) => formatSet(s.weightKg, s.reps)).join(', ')}',
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+        const SizedBox(height: AppSpacing.md),
+        for (final set in sets)
+          _SetRow(
+            key: ValueKey('set-${set.id}'),
+            set: set,
+            onTap: () => _openEditSheet(set),
+            onDelete: () => widget.onDeleteSet(set.id),
+          ),
+        if (sets.isNotEmpty) const SizedBox(height: AppSpacing.sm),
+        Text(
+          '${sets.length + 1}. set',
+          style: textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Row(
+          children: [
+            Expanded(
+              child: NumberStepper(
+                value: draft.weightKg,
+                step: 2.5,
+                unit: 'kg',
+                label: 'Ağırlık',
+                onChanged: widget.onDraftWeightChanged,
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: NumberStepper(
+                value: draft.reps.toDouble(),
+                step: 1,
+                min: 1,
+                allowDecimal: false,
+                label: 'Tekrar',
+                onChanged: (v) => widget.onDraftRepsChanged(v.round()),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: sets.isEmpty ? null : widget.onRepeatLastSet,
+                icon: const Icon(Icons.replay),
+                label: const Text('Seti tekrarla'),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.sm),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colorScheme.primary,
+                  side: BorderSide(color: colorScheme.primary),
+                ),
+                onPressed: () {
+                  HapticFeedback.lightImpact();
+                  widget.onAddSet();
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Set ekle'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        TextField(
+          controller: _noteController,
+          minLines: 1,
+          maxLines: 4,
+          decoration: const InputDecoration(
+            hintText: 'Not ekle (ör. 2. sette formum bozuldu)',
+          ),
+          onChanged: widget.onNoteChanged,
+        ),
+      ],
+    );
+  }
+}
+
+/// En ağır seti özetler: en büyük ağırlık; eşitse en çok tekrar; o da eşitse ilk set.
+String _heaviestSummary(List<ExerciseSet> sets) {
+  var heaviest = sets.first;
+  for (final set in sets.skip(1)) {
+    final heavier = set.weightKg > heaviest.weightKg;
+    final sameWeightMoreReps = set.weightKg == heaviest.weightKg &&
+        set.reps > heaviest.reps;
+    if (heavier || sameWeightMoreReps) heaviest = set;
+  }
+  return formatSet(heaviest.weightKg, heaviest.reps);
 }
 
 /// Bir setin özet satırı; dokununca düzenleme sayfası açılır.
