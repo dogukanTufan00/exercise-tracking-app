@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.2.0-beta.1] - 2026-10-18
+
+Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor vurgusu (#8) henüz yok.
+
 ### Eklendi
 - İlerleme altyapısı: hareket geçmişi sorgusu, tahmini 1RM (Epley) ve kişisel rekor hesapları (#5).
 - Hareket detay ekranı: kişisel rekorlar, tahmini 1RM / en ağır / hacim grafiği (`fl_chart`) ve
@@ -36,5 +40,6 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.1.0...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.2.0-beta.1...HEAD
+[0.2.0-beta.1]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.1
 [0.1.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.1.0
