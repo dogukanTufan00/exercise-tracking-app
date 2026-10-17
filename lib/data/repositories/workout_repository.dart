@@ -30,8 +30,8 @@ abstract interface class WorkoutRepository {
 
   // ------------------------------------------------------------- Hareket kataloğu
 
-  /// Adında [query] geçen hareketler (büyük/küçük harf duyarsız), ada göre A→Z.
-  /// [query] boşsa tüm katalog döner.
+  /// Adında [query] geçen hareketler, ada göre A→Z. Hem arama hem sıralama
+  /// büyük/küçük harf duyarsızdır. [query] boşsa tüm katalog döner.
   Future<List<Exercise>> searchExercises(String query);
 
   /// Kataloğa yeni hareket ekler.
