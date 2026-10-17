@@ -7,6 +7,9 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Eklendi
+- İlerleme altyapısı: hareket geçmişi sorgusu, tahmini 1RM (Epley) ve kişisel rekor hesapları (#5).
+
 ### Değişti
 - Release APK artık yayın anahtarıyla imzalanır; GitHub Release'lere APK eklenir.
 

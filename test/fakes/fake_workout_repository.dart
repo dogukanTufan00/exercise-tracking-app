@@ -213,6 +213,24 @@ class FakeWorkoutRepository implements WorkoutRepository {
     return const <ExerciseSet>[];
   }
 
+  // ------------------------------------------------------------------- İlerleme
+
+  @override
+  Future<List<ExerciseSession>> getExerciseHistory(int exerciseId) async {
+    final workouts = _workouts.values.toList()..sort(_oldestFirst);
+    final sessions = <ExerciseSession>[];
+    for (final workout in workouts) {
+      final sets = [
+        for (final we in _entriesOf(workout.id))
+          if (we.exerciseId == exerciseId) ..._setsOf(we.id),
+      ];
+      if (sets.isNotEmpty) {
+        sessions.add(ExerciseSession(workout: workout, sets: List.unmodifiable(sets)));
+      }
+    }
+    return List.unmodifiable(sessions);
+  }
+
   // ------------------------------------------------------------------ Yedekleme
 
   @override

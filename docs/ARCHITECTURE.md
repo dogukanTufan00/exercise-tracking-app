@@ -36,6 +36,8 @@ Tasarım kuralları için bkz. [DESIGN.md](DESIGN.md).
 UI katmanı      View (Widget)  →  ViewModel (ChangeNotifier)
                                         │ sadece Repository arayüzünü tanır
 Veri katmanı    Repository (abstract)  →  SqliteWorkoutRepository  →  DatabaseService (sqflite)
+
+Alan (domain)   lib/domain/ — saf Dart hesaplamalar (ilerleme, rekorlar); ViewModel'ler kullanır
 ```
 
 Kurallar:
@@ -44,6 +46,7 @@ Kurallar:
 3. **ViewModel'ler somut sınıfı değil, `WorkoutRepository` arayüzünü** kullanır. Böylece ileride backend gelirse sadece yeni bir Repository yazılır.
 4. **SQL yalnızca `DatabaseService` ve `SqliteWorkoutRepository` içinde** bulunur.
 5. Modeller değişmezdir (`final` alanlar, `copyWith`), `toMap()` / `fromMap()` içerir.
+6. **`lib/domain/`** Flutter'ı ve veritabanını import etmez; yalnızca modelleri alır, sonuç döner.
 
 ## 4. Veri modeli
 
@@ -108,6 +111,7 @@ CREATE INDEX idx_sets_we ON exercise_sets(workout_exercise_id);
 | `WorkoutSummary` | `workout`, `exerciseCount`, `setCount`, `muscleGroups` (geçmiş listesi için) |
 | `WorkoutExerciseDetail` | `workoutExercise`, `exercise`, `sets` (`List<ExerciseSet>`) |
 | `WorkoutDetail` | `workout`, `exercises` (`List<WorkoutExerciseDetail>`) |
+| `ExerciseSession` | `workout`, `sets` (bir hareketin tek antrenmandaki setleri; ilerleme için) |
 
 ## 6. Repository sözleşmesi
 
@@ -119,6 +123,7 @@ uygulamanın veriye tek giriş kapısıdır. Metotların kesin imzaları o dosya
 - Antrenmandaki hareket: ekle, notu güncelle, kaldır
 - Set: ekle, güncelle, sil
 - "Geçen sefer": bir hareketin, verilen antrenmandan önceki son antrenmandaki setleri
+- İlerleme: bir hareketin yapıldığı tüm antrenmanlar ve setleri (`getExerciseHistory`, en eskiden en yeniye)
 
 Tema seçimi ayrı tutulur: `SettingsRepository` (`shared_preferences`).
 
@@ -135,6 +140,8 @@ lib/
 │       ├── workout_repository.dart          # arayüz (sözleşme)
 │       ├── sqlite_workout_repository.dart   # SQLite uygulaması
 │       └── settings_repository.dart
+├── domain/
+│   └── progress.dart             # tahmini 1RM, antrenman başına değerler, kişisel rekorlar
 └── ui/
     ├── core/
     │   ├── theme/                # AppTheme, 4 tema, renk/yazı tanımları
@@ -224,3 +231,21 @@ Eski sürümler silinmez: her etiket o andaki kodun kalıcı adresidir (`git che
 GitHub'da etiket sayfasından indirilir).
 
 Gündelik commit'lerde sürüm değişmez; yalnızca `CHANGELOG.md` → `[Yayınlanmamış]` başlığına satır eklenir.
+
+## 12. İlerleme ve kişisel rekorlar (issue #3)
+
+Yeni tablo yoktur; her şey `exercise_sets` verisinden hesaplanır (`lib/domain/progress.dart`).
+
+- **Ana metrik: tahmini 1RM**, Epley formülüyle `ağırlık × (1 + tekrar / 30)`; tek tekrarda ağırlığın kendisi.
+  Farklı tekrar sayılarındaki setleri karşılaştırılabilir kılar; ~12 tekrarın üstünde isabeti düşer.
+  Grafikte seçilebilen diğer metrikler: **en ağır set** ve **toplam hacim** (Σ ağırlık × tekrar).
+- **Grafikte bir nokta = bir antrenman** (`SessionStats`: o antrenmandaki en iyi değer).
+  Ağırlıksız hareketlerde (hep 0 kg) grafik en çok tekrarı gösterir.
+- **Kişisel rekorlar:** en ağır ağırlık, en iyi tahmini 1RM, tek antrenmandaki en yüksek hacim.
+  Eşitlikte rekor ilk ulaşılan antrenmanda kalır; değeri 0 olan rekor yoktur (null).
+- **Grafik paketi:** `fl_chart`; renkler `Theme.of(context)`'ten verilir. (`CustomPaint` ile elle çizim
+  ileride öğrenme alıştırması olarak denenecek, #9.)
+- **Giriş noktası:** hareket kartının ⋮ menüsü ve Geçmiş'ten açılan "Hareketler" ekranı
+  (karta dokunmak kartı açıp kapatır).
+- Adımlar: #5 veri ve hesaplama → #6 detay ekranı → #7 giriş noktaları → #8 antrenmanda rekor vurgusu.
+  Hepsi v0.2.0 ile yayınlanır.

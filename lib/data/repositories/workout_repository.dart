@@ -87,6 +87,12 @@ abstract interface class WorkoutRepository {
     required int beforeWorkoutId,
   });
 
+  // ------------------------------------------------------------------ İlerleme
+
+  /// [exerciseId] hareketinin yapıldığı tüm antrenmanlar, en eskiden en yeniye
+  /// ([Workout.startedAt], eşitlikte id sırası). Hareketin hiç seti olmayan antrenmanlar atlanır.
+  Future<List<ExerciseSession>> getExerciseHistory(int exerciseId);
+
   // ------------------------------------------------------------ Yedekleme
 
   /// Tüm veriyi yedek olarak döndürür ([BackupData.exportedAt] = şu an).

@@ -51,3 +51,17 @@ class WorkoutDetail {
   /// [WorkoutExercise.position] sırasına göre.
   final List<WorkoutExerciseDetail> exercises;
 }
+
+/// Bir hareketin tek bir antrenmandaki setleri (ilerleme grafiği ve rekorlar için).
+class ExerciseSession {
+  const ExerciseSession({
+    required this.workout,
+    required this.sets,
+  });
+
+  final Workout workout;
+
+  /// Hareket antrenmana birden çok kez eklendiyse hepsinin setleri:
+  /// önce [WorkoutExercise.position], sonra [ExerciseSet.setNumber] sırasıyla. Boş olmaz.
+  final List<ExerciseSet> sets;
+}

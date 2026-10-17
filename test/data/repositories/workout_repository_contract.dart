@@ -407,6 +407,60 @@ void runWorkoutRepositoryContractTests(
       });
     });
 
+    group('ilerleme', () {
+      test('getExerciseHistory antrenmanları en eskiden en yeniye, setleriyle döner', () async {
+        final bench = await exercise('Bench Press');
+        final squat = await exercise('Squat', MuscleGroup.legs);
+
+        Future<Workout> workoutWith(DateTime at, Exercise ex, List<double> weights) async {
+          final w = await repo.createWorkout(startedAt: at);
+          final we = await repo.addExerciseToWorkout(w.id, ex.id);
+          for (final kg in weights) {
+            await repo.addSet(we.id, weightKg: kg, reps: 8);
+          }
+          return w;
+        }
+
+        // Oluşturma sırası zaman sırasından farklı: id'ye değil startedAt'e bakılmalı.
+        final late = await workoutWith(DateTime(2026, 10, 20), bench, [80]);
+        final early = await workoutWith(DateTime(2026, 10, 1), bench, [50, 55]);
+        await workoutWith(DateTime(2026, 10, 10), bench, []); // setsiz: atlanır
+        await workoutWith(DateTime(2026, 10, 15), squat, [100]); // başka hareket
+
+        final history = await repo.getExerciseHistory(bench.id);
+
+        expect(history.map((s) => s.workout.id), [early.id, late.id]);
+        expect(history.first.workout.startedAt, DateTime(2026, 10, 1));
+        expect(history.first.sets.map((s) => s.weightKg), [50.0, 55.0]);
+        expect(history.last.sets.map((s) => s.weightKg), [80.0]);
+      });
+
+      test('aynı antrenmana iki kez eklenen hareketin setleri tek oturumda birleşir', () async {
+        final bench = await exercise('Bench Press');
+        final squat = await exercise('Squat', MuscleGroup.legs);
+        final w = await repo.createWorkout();
+        final first = await repo.addExerciseToWorkout(w.id, bench.id);
+        await repo.addExerciseToWorkout(w.id, squat.id);
+        final second = await repo.addExerciseToWorkout(w.id, bench.id);
+        await repo.addSet(second.id, weightKg: 40, reps: 12);
+        await repo.addSet(first.id, weightKg: 60, reps: 8);
+        await repo.addSet(first.id, weightKg: 65, reps: 6);
+
+        final history = await repo.getExerciseHistory(bench.id);
+
+        expect(history, hasLength(1));
+        expect(history.single.sets.map((s) => s.weightKg), [60.0, 65.0, 40.0]);
+      });
+
+      test('hiç seti olmayan hareket için boş liste döner', () async {
+        final bench = await exercise('Bench Press');
+        final w = await repo.createWorkout();
+        await repo.addExerciseToWorkout(w.id, bench.id);
+
+        expect(await repo.getExerciseHistory(bench.id), isEmpty);
+      });
+    });
+
     group('yedekleme', () {
       /// Karşılaştırma için yedeği id'lerden ve exportedAt'ten bağımsız satırlara çevirir.
       List<String> describe(BackupData data) => [

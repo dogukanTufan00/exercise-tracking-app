@@ -409,6 +409,43 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     return [for (final row in setRows) ExerciseSet.fromMap(row)];
   }
 
+  // ------------------------------------------------------------------- İlerleme
+
+  @override
+  Future<List<ExerciseSession>> getExerciseHistory(int exerciseId) async {
+    final db = await _db;
+
+    // Tek sorgu: her satır bir set; antrenman bilgisi her satırda tekrar eder.
+    final rows = await db.rawQuery('''
+      SELECT w.id AS w_id, w.started_at, w.title,
+             s.id, s.workout_exercise_id, s.set_number, s.weight_kg, s.reps
+      FROM exercise_sets s
+      JOIN workout_exercises we ON we.id = s.workout_exercise_id
+      JOIN workouts w ON w.id = we.workout_id
+      WHERE we.exercise_id = ?
+      ORDER BY w.started_at, w.id, we.position, s.set_number
+    ''', [exerciseId]);
+
+    final sessions = <ExerciseSession>[];
+    Workout? workout;
+    var sets = <ExerciseSet>[];
+    for (final row in rows) {
+      final workoutId = row['w_id'] as int;
+      if (workout?.id != workoutId) {
+        if (workout != null) {
+          sessions.add(ExerciseSession(workout: workout, sets: List.unmodifiable(sets)));
+        }
+        workout = Workout.fromMap({...row, 'id': workoutId});
+        sets = [];
+      }
+      sets.add(ExerciseSet.fromMap(row));
+    }
+    if (workout != null) {
+      sessions.add(ExerciseSession(workout: workout, sets: List.unmodifiable(sets)));
+    }
+    return List.unmodifiable(sessions);
+  }
+
   // ------------------------------------------------------------------ Yedekleme
 
   @override
