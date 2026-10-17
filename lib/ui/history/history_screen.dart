@@ -8,6 +8,7 @@ import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
 import '../core/widgets/muscle_group_chip.dart';
+import '../exercises/exercises_screen.dart';
 import '../settings/settings_screen.dart';
 import '../workout/workout_screen.dart';
 import 'history_view_model.dart';
@@ -40,6 +41,13 @@ class _HistoryView extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Antrenmanlar'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.insights_outlined),
+            tooltip: 'Hareketler',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const ExercisesScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Ayarlar',

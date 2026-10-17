@@ -2,6 +2,7 @@ import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/core/formatters.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
+import 'package:exercise_tracking_app/ui/exercises/exercises_screen.dart';
 import 'package:exercise_tracking_app/ui/history/history_screen.dart';
 import 'package:exercise_tracking_app/ui/workout/workout_screen.dart';
 import 'package:flutter/material.dart';
@@ -86,6 +87,16 @@ void main() {
     final workouts = await tester.runAsync(repository.getWorkoutSummaries);
     expect(workouts, hasLength(1));
     expect(find.byType(WorkoutScreen), findsOneWidget);
+  });
+
+  testWidgets('Hareketler ikonu Hareketler ekranını açar', (tester) async {
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Hareketler'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ExercisesScreen), findsOneWidget);
+    expect(find.text('Hareketler'), findsWidgets);
   });
 
   testWidgets('uzun basma, Sil ve kart kaybolur', (tester) async {

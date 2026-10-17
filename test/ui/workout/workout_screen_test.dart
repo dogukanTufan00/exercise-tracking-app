@@ -1,6 +1,7 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
+import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_screen.dart';
 import 'package:exercise_tracking_app/ui/workout/workout_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -197,6 +198,26 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('Set ekle'), findsOneWidget);
+  });
+
+  testWidgets('⋮ menüsünde İlerleme hareketin detay ekranını açar', (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.addSet(we.id, weightKg: 60, reps: 10);
+
+    await pumpWorkout(tester, workout.id);
+    await tester.tap(find.byTooltip('Seçenekler'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('İlerleme'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(ExerciseDetailScreen), findsOneWidget);
+    final detailAppBar = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('Bench Press'),
+    );
+    expect(detailAppBar, findsOneWidget);
   });
 
   group('ağırlık/tekrar adımlayıcıları', () {

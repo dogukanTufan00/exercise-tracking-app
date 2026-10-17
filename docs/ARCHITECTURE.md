@@ -151,6 +151,7 @@ lib/
     ├── workout/                  # Antrenman ekranı + ViewModel
     ├── exercise_picker/          # Hareket seç ekranı + ViewModel
     ├── exercise_detail/          # Hareket detay (rekorlar, grafik) ekranı + ViewModel
+    ├── exercises/                # Hareketler listesi ekranı + ViewModel
     └── settings/                 # Ayarlar (tema) ekranı + ViewModel
 test/                             # lib/ ile aynı klasör yapısı
 ```
@@ -161,7 +162,10 @@ test/                             # lib/ ile aynı klasör yapısı
 Geçmiş ──(+)──► Antrenman ──(Hareket ekle)──► Hareket seç
    │  ◄──geri──┘    ▲                              │
    │                └──────(seçilen hareket)───────┘
-   └──(ayarlar simgesi)──► Ayarlar
+   ├──(ayarlar simgesi)──► Ayarlar
+   └──(Hareketler simgesi)──► Hareketler ──► Hareket detayı
+                                                ▲
+Antrenman ──(kart ⋮ > İlerleme)─────────────────┘
 ```
 
 - **Geçmiş:** antrenman kartları (başlık ya da tarih, hareket/set sayısı, kas grubu etiketleri), boş durum, ekle butonu.
@@ -171,7 +175,8 @@ Geçmiş ──(+)──► Antrenman ──(Hareket ekle)──► Hareket seç
 - **Hareket seç:** arama kutusu, eşleşen hareketler, eşleşme yoksa kas grubu seçerek yeni hareket oluşturma.
 - **Ayarlar:** 4 tema seçeneği.
 - **Hareket detayı:** kişisel rekorlar kartı, metrik seçimi + çizgi grafik (en az iki antrenman gerekir),
-  antrenman antrenman setler (en yeni üstte). Giriş noktaları #7 ile eklenir.
+  antrenman antrenman setler (en yeni üstte).
+- **Hareketler:** katalogdaki tüm hareketler (Türkçe duyarlı arama, kas grubu etiketi); dokununca hareket detayı.
 
 ## 9. Kod kuralları
 
