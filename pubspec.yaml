@@ -52,6 +52,17 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   sqflite_common_ffi: ^2.4.4
 
+# sqflite_common_ffi (only used by tests) depends on package:sqlite3, whose build hook
+# downloads a prebuilt SQLite from GitHub by default. Use the OS copy instead so builds
+# need no network: winsqlite3.dll on Windows, libsqlite3.so on Linux (CI). The Android
+# app itself uses sqflite, which talks to Android's built-in SQLite.
+hooks:
+  user_defines:
+    sqlite3:
+      source: system
+      name_windows: winsqlite3
+      name: sqlite3
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

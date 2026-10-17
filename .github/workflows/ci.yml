@@ -17,6 +17,9 @@ jobs:
           flutter-version: 3.47.7
           cache: true
 
+      - name: Install system SQLite (used by tests, see pubspec.yaml hooks)
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
       - name: Install dependencies
         run: flutter pub get
 
