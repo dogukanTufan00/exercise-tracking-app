@@ -9,6 +9,8 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ### Eklendi
 - İlerleme altyapısı: hareket geçmişi sorgusu, tahmini 1RM (Epley) ve kişisel rekor hesapları (#5).
+- Hareket detay ekranı: kişisel rekorlar, tahmini 1RM / en ağır / hacim grafiği (`fl_chart`) ve
+  antrenman antrenman setler. Ağırlıksız hareketlerde tekrar gösterilir (#6).
 
 ### Değişti
 - Release APK artık yayın anahtarıyla imzalanır; GitHub Release'lere APK eklenir.

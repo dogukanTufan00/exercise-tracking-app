@@ -68,13 +68,15 @@ class PersonalRecord {
   String toString() => 'PersonalRecord($value, workout ${workout.id})';
 }
 
-/// Bir hareketin kişisel rekorları. Değeri 0 olan rekor (ör. hep 0 kg ile yapılan
+/// Bir hareketin kişisel rekorları. Ağırlıklı hareketlerde ilk üçü, ağırlıksızlarda
+/// [mostReps] gösterilir. Değeri 0 olan rekor (ör. hep 0 kg ile yapılan
 /// harekette en ağır ağırlık) anlamsız olduğu için null'dır.
 class PersonalRecords {
   const PersonalRecords({
     this.heaviest,
     this.bestEstimatedOneRepMax,
     this.bestVolume,
+    this.mostReps,
   });
 
   /// [history] en eskiden en yeniye sıralı olmalıdır ([WorkoutRepository.getExerciseHistory] gibi).
@@ -91,6 +93,7 @@ class PersonalRecords {
       heaviest: _best(stats, (s) => s.heaviestKg),
       bestEstimatedOneRepMax: _best(stats, (s) => s.bestEstimatedOneRepMax),
       bestVolume: _best(stats, (s) => s.volumeKg),
+      mostReps: _best(stats, (s) => s.maxReps.toDouble()),
     );
   }
 
@@ -99,6 +102,9 @@ class PersonalRecords {
   final PersonalRecord? heaviest;
   final PersonalRecord? bestEstimatedOneRepMax;
   final PersonalRecord? bestVolume;
+
+  /// Tek setteki en çok tekrar; ağırlıksız hareketlerde gösterilen rekor.
+  final PersonalRecord? mostReps;
 
   static PersonalRecord? _best(
     List<SessionStats> stats,

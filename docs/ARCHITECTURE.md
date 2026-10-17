@@ -29,6 +29,7 @@ Tasarım kuralları için bkz. [DESIGN.md](DESIGN.md).
 | Basit ayarlar | `shared_preferences` (seçili tema) |
 | Tarih biçimi | `intl` (tr_TR) |
 | Navigasyon | Flutter'ın yerleşik `Navigator` (`push` / `pop`) |
+| Grafik | `fl_chart` (bkz. §12) |
 
 ## 3. Katmanlar
 
@@ -149,6 +150,7 @@ lib/
     ├── history/                  # Geçmiş ekranı + ViewModel
     ├── workout/                  # Antrenman ekranı + ViewModel
     ├── exercise_picker/          # Hareket seç ekranı + ViewModel
+    ├── exercise_detail/          # Hareket detay (rekorlar, grafik) ekranı + ViewModel
     └── settings/                 # Ayarlar (tema) ekranı + ViewModel
 test/                             # lib/ ile aynı klasör yapısı
 ```
@@ -168,6 +170,8 @@ Geçmiş ──(+)──► Antrenman ──(Hareket ekle)──► Hareket seç
   Değişiklikler anında veritabanına yazılır, ayrı bir "Kaydet" adımı yoktur.
 - **Hareket seç:** arama kutusu, eşleşen hareketler, eşleşme yoksa kas grubu seçerek yeni hareket oluşturma.
 - **Ayarlar:** 4 tema seçeneği.
+- **Hareket detayı:** kişisel rekorlar kartı, metrik seçimi + çizgi grafik (en az iki antrenman gerekir),
+  antrenman antrenman setler (en yeni üstte). Giriş noktaları #7 ile eklenir.
 
 ## 9. Kod kuralları
 

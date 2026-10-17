@@ -73,6 +73,8 @@ void main() {
       expect(records.bestEstimatedOneRepMax!.workout.id, 3);
       expect(records.bestVolume!.value, 1800);
       expect(records.bestVolume!.workout.id, 1);
+      expect(records.mostReps!.value, 10);
+      expect(records.mostReps!.workout.id, 1);
     });
 
     test('eşit değerde rekor ilk ulaşılan antrenmanda kalır', () {
@@ -92,16 +94,20 @@ void main() {
       expect(records.heaviest, isNull);
       expect(records.bestEstimatedOneRepMax, isNull);
       expect(records.bestVolume, isNull);
+      expect(records.mostReps, isNull);
     });
 
-    test('hep 0 kg ile yapılan harekette ağırlık rekorları yoktur', () {
+    test('hep 0 kg ile yapılan harekette yalnızca tekrar rekoru vardır', () {
       final records = PersonalRecords.fromHistory([
         session(1, [(0, 10)]),
+        session(2, [(0, 12), (0, 8)]),
       ]);
 
       expect(records.heaviest, isNull);
       expect(records.bestEstimatedOneRepMax, isNull);
       expect(records.bestVolume, isNull);
+      expect(records.mostReps!.value, 12);
+      expect(records.mostReps!.workout.id, 2);
     });
   });
 }
