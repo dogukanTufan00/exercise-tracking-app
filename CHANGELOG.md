@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Değişti
+- Uygulamanın adı "Exercise Tracker" oldu ve yeni bir ikonu var: sarı-lacivert dambıl ve yukarı ok,
+  Android'de her telefonun ikon şekline uyan "adaptive icon" olarak (#2).
+
 ## [0.2.0-beta.2] - 2026-10-18
 
 ### Düzeltildi
