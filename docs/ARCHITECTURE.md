@@ -225,6 +225,8 @@ Aşamalar sürüm adına ek olarak yazılmaz; Git etiketi ve GitHub Release ile 
 1. `CHANGELOG.md` içindeki `[Yayınlanmamış]` başlığı altındakileri yeni sürüm başlığına taşı.
 2. `pubspec.yaml` sürümünü güncelle (`X.Y.Z` kurala göre, `+N` bir artır).
 3. `flutter analyze` ve `flutter test` temiz olmalı.
+   **Release APK'yı gerçek telefonda aç** (`adb install -r` + uygulamayı başlat, Ayarlar'ı aç):
+   testler küçültülmemiş kodla çalışır, R8'in yol açtığı hataları yakalayamaz (bkz. 0.2.0-beta.2).
 4. Commit: `Release vX.Y.Z`.
 5. Açıklamalı etiket at ve gönder: `git tag -a vX.Y.Z -m "vX.Y.Z"` → `git push origin main --tags`.
 6. APK'yı derle (`flutter build apk --release`) ve GitHub Release oluştur:
@@ -235,6 +237,10 @@ Aşamalar sürüm adına ek olarak yazılmaz; Git etiketi ve GitHub Release ile 
 (keystore: `C:\Users\user\keystores\exercise_tracking_app.jks`). İkisi de repo'ya girmez ve **yedeklenmelidir**:
 anahtar kaybolursa yeni sürümler eskinin üstüne kurulamaz, uygulamayı silip yeniden kurmak gerekir.
 `key.properties` yoksa (ör. CI'da) release derlemesi debug anahtarıyla imzalanır; o APK yayınlanmaz.
+
+**Küçültme (R8):** Release derlemesi kodu küçültür ve adları kısaltır. Dart'tan JNI ile adıyla çağrılan
+sınıflar `android/app/proguard-rules.pro` ile korunur. JNI kullanan yeni bir eklenti eklenirse
+(`package:jni`'ye bağımlı) paket adı bu dosyaya eklenir.
 
 Eski sürümler silinmez: her etiket o andaki kodun kalıcı adresidir (`git checkout vX.Y.Z` ile geri dönülür,
 GitHub'da etiket sayfasından indirilir).
