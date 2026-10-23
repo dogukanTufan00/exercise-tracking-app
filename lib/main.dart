@@ -11,7 +11,7 @@ import 'data/repositories/workout_repository.dart';
 import 'data/services/backup_file_service.dart';
 import 'data/services/database_service.dart';
 import 'ui/core/theme/theme_controller.dart';
-import 'ui/history/history_screen.dart';
+import 'ui/app_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,7 +69,7 @@ class ExerciseTrackerApp extends StatelessWidget {
             title: 'Exercise Tracker',
             debugShowCheckedModeBanner: false,
             theme: controller.theme,
-            home: const HistoryScreen(),
+            home: const AppShell(),
           );
         },
       ),
