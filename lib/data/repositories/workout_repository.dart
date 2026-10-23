@@ -54,6 +54,11 @@ abstract interface class WorkoutRepository {
   /// Değişiklik hareketin tüm geçmişine yansır.
   Future<Exercise> updateExercise(int id, {required String name, required MuscleGroup muscleGroup});
 
+  /// Aynı hareketin iki kaydını birleştirir (#12): [sourceId]'nin tüm antrenman kayıtları ve program günü
+  /// hareketleri [targetId]'ye taşınır, ardından [sourceId] katalogdan silinir. Tek transaction.
+  /// [targetId]'nin adı ve kas grubu değişmez. İki id aynıysa ya da biri yoksa [ArgumentError].
+  Future<void> mergeExercises({required int sourceId, required int targetId});
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   /// Katalogdaki bir hareketi antrenmanın sonuna ekler.
@@ -67,6 +72,11 @@ abstract interface class WorkoutRepository {
   /// Hareketi (ve setlerini) antrenmandan kaldırır.
   /// Kalan hareketlerin [WorkoutExercise.position] değerleri 0, 1, 2… olarak yeniden sıralanır.
   Future<void> removeExerciseFromWorkout(int workoutExerciseId);
+
+  /// Antrenmandaki kaydın hareketini [exerciseId] ile değiştirir (#11): yanlış seçilmiş hareket düzeltilir.
+  /// Setler, not, sıra ve hedef aynen kalır; yalnızca bu antrenman değişir (katalog değişmez).
+  /// Kayıt ya da hareket yoksa [ArgumentError].
+  Future<void> changeWorkoutExercise(int workoutExerciseId, int exerciseId);
 
   // ----------------------------------------------------------------------- Setler
 

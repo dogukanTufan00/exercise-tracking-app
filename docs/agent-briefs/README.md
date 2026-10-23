@@ -112,3 +112,6 @@ await tester.pumpAndSettle();
 | 11 | W2 | [Program günü düzenleme (#16)](wave11-w2-day-editor.md) |
 | 11 | X | [Antrenmanı programdan başlatma (#16)](wave11-x-start-from-program.md) |
 | 11 | Y | [Yedekte programlar, biçim 3 (#16)](wave11-y-backup-v3.md) |
+| 12a | Z1 | [Hareket değiştirme ve birleştirme, veri katmanı (#11, #12)](wave12-z1-swap-merge-data.md) |
+| 12b | Z2 | [Antrenmanda hareketi değiştirme (#11)](wave12-z2-swap-ui.md) |
+| 12b | Z3 | [Hareket birleştirme (#12)](wave12-z3-merge-ui.md) |
