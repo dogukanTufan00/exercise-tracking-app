@@ -1,3 +1,5 @@
+import 'program.dart';
+
 /// copyWith içinde "bu alan verilmedi" ile "bu alan null yapılsın"ı ayırt etmek için kullanılır.
 const Object _unset = Object();
 
@@ -9,6 +11,7 @@ class WorkoutExercise {
     required this.exerciseId,
     required this.position,
     this.note,
+    this.target,
   });
 
   factory WorkoutExercise.fromMap(Map<String, Object?> map) {
@@ -18,6 +21,13 @@ class WorkoutExercise {
       exerciseId: map['exercise_id'] as int,
       position: map['position'] as int,
       note: map['note'] as String?,
+      target: map['target_sets'] == null
+          ? null
+          : ExerciseTarget(
+              sets: map['target_sets'] as int,
+              reps: map['target_reps'] as int,
+              weightKg: (map['target_weight_kg'] as num?)?.toDouble(),
+            ),
     );
   }
 
@@ -31,6 +41,10 @@ class WorkoutExercise {
   /// Hareket bitince yazılan serbest not (ör. "2. sette formum bozuldu").
   final String? note;
 
+  /// Programdan başlatılan antrenmanda, başlatma anındaki hedefin kopyası (şema 3); yoksa `null`.
+  /// Program sonradan değişse de bu antrenmanın hedefi değişmez.
+  final ExerciseTarget? target;
+
   Map<String, Object?> toMap() {
     return {
       'id': id,
@@ -38,6 +52,9 @@ class WorkoutExercise {
       'exercise_id': exerciseId,
       'position': position,
       'note': note,
+      'target_sets': target?.sets,
+      'target_reps': target?.reps,
+      'target_weight_kg': target?.weightKg,
     };
   }
 
@@ -55,6 +72,7 @@ class WorkoutExercise {
       exerciseId: exerciseId ?? this.exerciseId,
       position: position ?? this.position,
       note: identical(note, _unset) ? this.note : note as String?,
+      target: target,
     );
   }
 
@@ -65,11 +83,12 @@ class WorkoutExercise {
         other.workoutId == workoutId &&
         other.exerciseId == exerciseId &&
         other.position == position &&
-        other.note == note;
+        other.note == note &&
+        other.target == target;
   }
 
   @override
-  int get hashCode => Object.hash(id, workoutId, exerciseId, position, note);
+  int get hashCode => Object.hash(id, workoutId, exerciseId, position, note, target);
 
   @override
   String toString() =>

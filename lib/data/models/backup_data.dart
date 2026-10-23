@@ -73,6 +73,45 @@ class BackupMeasurement {
   final double value;
 }
 
+/// Program günündeki bir hareket ve hedefi; harekete adıyla başvurulur. (format 3)
+class BackupProgramExercise {
+  const BackupProgramExercise({
+    required this.exerciseName,
+    required this.muscleGroup,
+    required this.sets,
+    required this.reps,
+    this.weightKg,
+  });
+
+  final String exerciseName;
+
+  /// Hareket hedef katalogda yoksa bu kas grubuyla oluşturulur.
+  final MuscleGroup muscleGroup;
+  final int sets;
+  final int reps;
+  final double? weightKg;
+}
+
+/// Bir program günü ve hareketleri (sırasıyla). (format 3)
+class BackupProgramDay {
+  const BackupProgramDay({required this.name, required this.exercises, this.weekday});
+
+  final String name;
+
+  /// 1 (Pazartesi) … 7 (Pazar) ya da `null`.
+  final int? weekday;
+  final List<BackupProgramExercise> exercises;
+}
+
+/// Bir program ve günleri (sırasıyla). (format 3)
+class BackupProgram {
+  const BackupProgram({required this.name, required this.isActive, required this.days});
+
+  final String name;
+  final bool isActive;
+  final List<BackupProgramDay> days;
+}
+
 /// Tüm yedek: katalog (hiç kullanılmamış hareketler dahil), antrenmanlar ve (format 2'den itibaren) ölçümler.
 class BackupData {
   const BackupData({
@@ -81,12 +120,13 @@ class BackupData {
     required this.workouts,
     this.measurementTypes = const [],
     this.measurements = const [],
+    this.programs = const [],
     this.formatVersion = currentFormatVersion,
   });
 
   /// JSON biçiminin sürümü. Biçim değişirse artırılır; içe aktarma eski sürümleri tanır.
-  /// 1: hareketler ve antrenmanlar. 2: + ölçüm türleri ve ölçümler.
-  static const int currentFormatVersion = 2;
+  /// 1: hareketler ve antrenmanlar. 2: + ölçüm türleri ve ölçümler. 3: + programlar.
+  static const int currentFormatVersion = 3;
 
   final int formatVersion;
   final DateTime exportedAt;
@@ -102,6 +142,9 @@ class BackupData {
 
   /// Ölçümler, en eskiden en yeniye. Format 1 yedeklerde boş.
   final List<BackupMeasurement> measurements;
+
+  /// Programlar (oluşturulma sırasıyla). Format 1 ve 2 yedeklerde boş.
+  final List<BackupProgram> programs;
 }
 
 /// İçe aktarmanın özeti; kullanıcıya gösterilir.

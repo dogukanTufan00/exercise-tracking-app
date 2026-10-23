@@ -118,6 +118,43 @@ CREATE TABLE body_measurements (
 CREATE INDEX idx_measurements_type ON body_measurements(type_id, measured_at);
 ```
 
+**Şema 3 (v0.4.0, #16): programlar.** Yeni tablolar ve mevcut iki tabloya yalnızca **boş (NULL) sütun** eklenir;
+mevcut satırların değerleri değişmez:
+
+```sql
+CREATE TABLE programs (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT    NOT NULL,
+  is_active   INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+  created_at  TEXT    NOT NULL           -- ISO 8601; sıralama için
+);
+
+CREATE TABLE program_days (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  program_id  INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+  name        TEXT    NOT NULL,
+  weekday     INTEGER CHECK (weekday BETWEEN 1 AND 7),   -- 1 = Pazartesi; NULL = güne bağlı değil
+  position    INTEGER NOT NULL
+);
+CREATE INDEX idx_program_days_program ON program_days(program_id);
+
+CREATE TABLE program_day_exercises (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  program_day_id    INTEGER NOT NULL REFERENCES program_days(id) ON DELETE CASCADE,
+  exercise_id       INTEGER NOT NULL REFERENCES exercises(id)    ON DELETE RESTRICT,
+  position          INTEGER NOT NULL,
+  target_sets       INTEGER NOT NULL CHECK (target_sets > 0),
+  target_reps       INTEGER NOT NULL CHECK (target_reps > 0),
+  target_weight_kg  REAL    CHECK (target_weight_kg >= 0)
+);
+CREATE INDEX idx_program_day_exercises_day ON program_day_exercises(program_day_id);
+
+ALTER TABLE workouts          ADD COLUMN program_day_id   INTEGER REFERENCES program_days(id) ON DELETE SET NULL;
+ALTER TABLE workout_exercises ADD COLUMN target_sets      INTEGER;
+ALTER TABLE workout_exercises ADD COLUMN target_reps      INTEGER;
+ALTER TABLE workout_exercises ADD COLUMN target_weight_kg REAL;
+```
+
 Yerleşik türler (`builtinMeasurementTypes`, `lib/data/models/measurement.dart`) hem yeni kurulumda (`onCreate`)
 hem de 1 → 2 geçişinde (`onUpgrade`) aynı sırayla eklenir. Ölçümler `MeasurementRepository` üzerinden okunur/yazılır.
 
@@ -313,3 +350,18 @@ Sıra (her madde bir GitHub issue'su):
    bugünün günü önerilir ama programdaki herhangi bir gün seçilebilir. "Kaçırıldı" işareti, seri ya da uyarı yok;
    gün kaçırmak cezalandırılmaz.
 5. Sonra: **#11** antrenmanda hareketi değiştirme, **#12** aynı hareketin iki kaydını birleştirme, kullanıcı grupları.
+
+## 14. Programlar (#16)
+
+- **Karma model:** program günleri isteğe bağlı olarak haftanın bir gününe bağlanır (`weekday`). Antrenman
+  başlatırken etkin programın bugüne denk gelen günü önerilir (`suggestedDay`, `lib/domain/program_schedule.dart`),
+  ama programın **herhangi bir günü** başlatılabilir. Kaçırılan gün, seri ya da uyarı tutulmaz.
+- Birden çok program olabilir; **en fazla biri etkin**. İlk oluşturulan program kendiliğinden etkin olur.
+- Programdan başlatılan antrenman: başlık = gün adı, `workouts.program_day_id` ile güne bağlı, hareketler sırayla
+  eklenir ve her birinin hedefi `workout_exercises.target_*` sütunlarına **kopyalanır**. Program sonradan
+  değişse ya da silinse de eski antrenmanın hedefleri değişmez.
+- Antrenmanda hareket kartı hedefi gösterir ("Hedef: 3 × 10 · 40 kg"); ilk setin taslağı hedeften gelir
+  (ağırlık hedefi yoksa "geçen sefer"den).
+- Veriye `ProgramRepository` ile erişilir (`lib/data/repositories/program_repository.dart`).
+- Yedek biçimi 3 programları içerir (hareketlere adla başvurarak); antrenmanların program bağlantısı ve kopyalanmış
+  hedefleri yedeğe girmez.

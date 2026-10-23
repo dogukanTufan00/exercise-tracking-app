@@ -512,7 +512,7 @@ void main() {
       final text = encodeBackupJson(measurementData());
       final decoded = decodeBackupJson(text);
 
-      expect(decoded.formatVersion, 2);
+      expect(decoded.formatVersion, BackupData.currentFormatVersion);
       expect(decoded.measurementTypes.single.name, 'Ön kol');
       expect(decoded.measurementTypes.single.unit, 'cm');
       expect(decoded.measurements.length, 2);
@@ -527,7 +527,7 @@ void main() {
       final map = jsonDecode(encodeBackupJson(measurementData()))
           as Map<String, dynamic>;
 
-      expect(map['format_version'], 2);
+      expect(map['format_version'], BackupData.currentFormatVersion);
       expect(map['measurement_types'], [
         {'name': 'Ön kol', 'unit': 'cm'},
       ]);
@@ -547,7 +547,7 @@ void main() {
       expect(map['measurements'], isEmpty);
     });
 
-    test('eski sürümdeki nesne formatVersion 1 olsa da 2 yazılır', () {
+    test('eski sürümdeki nesne formatVersion 1 olsa da güncel sürüm yazılır', () {
       final data = BackupData(
         formatVersion: 1,
         exportedAt: DateTime(2026, 10, 18),
@@ -556,7 +556,7 @@ void main() {
       );
       final map = jsonDecode(encodeBackupJson(data)) as Map<String, dynamic>;
 
-      expect(map['format_version'], 2);
+      expect(map['format_version'], BackupData.currentFormatVersion);
     });
 
     test('biçim 1 dosyasında ölçüm listeleri boş okunur', () {

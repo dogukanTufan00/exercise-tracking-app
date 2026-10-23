@@ -6,6 +6,7 @@ export 'exercise.dart';
 export 'exercise_set.dart';
 export 'measurement.dart';
 export 'muscle_group.dart';
+export 'program.dart';
 export 'workout.dart';
 export 'workout_details.dart';
 export 'workout_exercise.dart';

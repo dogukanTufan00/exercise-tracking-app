@@ -106,3 +106,5 @@ await tester.pumpAndSettle();
 | 9 | Q | [Alt gezinme çubuğu (#13)](wave9-q-bottom-navigation.md) |
 | 9 | R | [Profil ve ölçüm ekranları (#14)](wave9-r-profile-screen.md) |
 | 9 | S | [Yedekte ölçümler, biçim 2 (#14)](wave9-s-backup-v2.md) |
+| 10 | U | [Programların veri katmanı ve şema 3 geçişi (#16)](wave10-u-program-data.md) |
+| 10 | V | [Sekmeye dönünce listeleri yenile (#17)](wave10-v-tab-refresh.md) |
