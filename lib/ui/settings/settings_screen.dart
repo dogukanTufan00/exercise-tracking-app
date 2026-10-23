@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/measurement_repository.dart';
+import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../data/services/backup_file_service.dart';
 import '../core/theme/app_palette.dart';
@@ -22,6 +23,7 @@ class SettingsScreen extends StatelessWidget {
       create: (context) => BackupViewModel(
         context.read<WorkoutRepository>(),
         context.read<MeasurementRepository>(),
+        context.read<ProgramRepository>(),
         context.read<BackupFileService>(),
       ),
       child: const _SettingsView(),

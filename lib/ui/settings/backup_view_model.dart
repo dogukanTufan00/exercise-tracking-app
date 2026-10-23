@@ -4,6 +4,7 @@ import '../../data/backup/backup_csv_exporter.dart';
 import '../../data/backup/backup_json_codec.dart';
 import '../../data/models/backup_data.dart';
 import '../../data/repositories/measurement_repository.dart';
+import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../data/services/backup_file_service.dart';
 
@@ -12,12 +13,14 @@ class BackupViewModel extends ChangeNotifier {
   BackupViewModel(
     this._repository,
     this._measurements,
+    this._programs,
     this._files, {
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
   final WorkoutRepository _repository;
   final MeasurementRepository _measurements;
+  final ProgramRepository _programs;
   final BackupFileService _files;
   final DateTime Function() _clock;
 
@@ -73,17 +76,17 @@ class BackupViewModel extends ChangeNotifier {
     return _run(() async {
       final workoutData = await _repository.exportBackup();
       final measurementData = await _measurements.exportMeasurements();
+      final programs = await _programs.exportPrograms();
       final data = BackupData(
         exportedAt: workoutData.exportedAt,
         exercises: workoutData.exercises,
         workouts: workoutData.workouts,
         measurementTypes: measurementData.types,
         measurements: measurementData.measurements,
+        programs: programs,
       );
-      if (_isEmpty(data) &&
-          data.measurementTypes.isEmpty &&
-          data.measurements.isEmpty) {
-        // JSON yedeği hareket, antrenman ve ölçümlerin hepsi boşsa alınmaz.
+      if (_isEmptyJson(data)) {
+        // JSON yedeği hareket, antrenman, ölçüm ve programların hepsi boşsa alınmaz.
         _errorMessage = _noDataMessage;
         return;
       }
@@ -98,7 +101,7 @@ class BackupViewModel extends ChangeNotifier {
 
   /// Seçilen JSON yedeğini mevcut verilerle birleştirir. Hiçbir mevcut veri silinmez.
   ///
-  /// Önce antrenmanlar, sonra ölçümler içe aktarılır; her biri kendi içinde ya hep ya hiç.
+  /// Önce antrenmanlar, sonra ölçümler, en son programlar içe aktarılır; her biri kendi içinde ya hep ya hiç.
   Future<void> importJson() {
     return _run(() async {
       final text = await _files.pickTextFile();
@@ -126,7 +129,17 @@ class BackupViewModel extends ChangeNotifier {
             'Antrenmanlar eklendi ama ölçümler geçersiz değerler içerdiği için eklenemedi.';
         return;
       }
-      _message = _importMessage(result, addedMeasurements);
+
+      // Programlar da ayrı transaction'da; hata olursa önceki adımların eklendiği söylenir.
+      final int addedPrograms;
+      try {
+        addedPrograms = await _programs.importPrograms(data.programs);
+      } on ArgumentError {
+        _errorMessage =
+            'Antrenmanlar ve ölçümler eklendi ama programlar geçersiz değerler içerdiği için eklenemedi.';
+        return;
+      }
+      _message = _importMessage(result, addedMeasurements, addedPrograms);
     });
   }
 
@@ -155,7 +168,19 @@ class BackupViewModel extends ChangeNotifier {
     return data.exercises.isEmpty && data.workouts.isEmpty;
   }
 
-  static String _importMessage(ImportResult result, int addedMeasurements) {
+  /// JSON yedeği için "veri yok" kontrolü: hareket, antrenman, ölçüm ve programların hepsi boş olmalı.
+  static bool _isEmptyJson(BackupData data) {
+    return _isEmpty(data) &&
+        data.measurementTypes.isEmpty &&
+        data.measurements.isEmpty &&
+        data.programs.isEmpty;
+  }
+
+  static String _importMessage(
+    ImportResult result,
+    int addedMeasurements,
+    int addedPrograms,
+  ) {
     final buffer = StringBuffer(
       '${result.addedWorkouts} antrenman eklendi, '
       '${result.skippedWorkouts} antrenman atlandı',
@@ -165,6 +190,9 @@ class BackupViewModel extends ChangeNotifier {
     }
     if (addedMeasurements > 0) {
       buffer.write(', $addedMeasurements ölçüm');
+    }
+    if (addedPrograms > 0) {
+      buffer.write(', $addedPrograms program');
     }
     return buffer.toString();
   }

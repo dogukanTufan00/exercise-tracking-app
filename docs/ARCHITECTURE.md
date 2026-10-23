@@ -272,6 +272,9 @@ Ayarlar > Veriler ──► BackupViewModel ──► WorkoutRepository.exportBa
 - Biçim 2 (#14): JSON, kullanıcının eklediği ölçüm türlerini (`measurement_types`) ve tüm ölçümleri (`measurements`)
   içerir. Biçim 1 yedekler okunmaya devam eder (ölçüm listeleri boş). Geri yüklemede önce antrenmanlar, sonra
   ölçümler içe aktarılır; her biri kendi transaction'ında (ya hep ya hiç). CSV yalnızca antrenmanları yazar.
+- Biçim 3 (#16): JSON, `programs` listesini içerir (programlar, günler ve hedefler; hareketlere adla başvurulur,
+  `weekday` ve `weight_kg` `null` olabilir). Biçim 1 ve 2 yedekler okunmaya devam eder (programlar boş). Geri
+  yüklemede sıra antrenmanlar → ölçümler → programlar; her biri kendi transaction'ında.
 
 ## 11. Sürümleme ve yayın
 

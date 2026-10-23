@@ -7,6 +7,16 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Eklendi
+- Program sekmesi: haftalık programını günlere böl, her güne hareket ve hedef (set × tekrar, isteğe bağlı ağırlık)
+  ekle; günleri haftanın bir gününe bağla ya da esnek bırak; birden çok program, biri etkin (#16).
+- Antrenmanı programdan başlatma: "Antrenman başlat" bugünün gününü önerir ama programdaki her gün seçilebilir;
+  kaçırılan gün hiçbir yerde işaretlenmez. Kartlarda "Hedef: 3 × 10 · 40 kg · 1/3 set" ve ilk set hedeften gelir (#16).
+- Yedek biçimi 3 programları da içerir; eski yedekler okunmaya devam eder (#16).
+
+### Düzeltildi
+- Hareketler ve Profil sekmeleri, sekmeye dönünce yenilenir (#17).
+
 ## [0.3.0] - 2026-10-23
 
 Profil ve gezinme sürümü.

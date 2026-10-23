@@ -612,4 +612,184 @@ void main() {
       _expectCorrupt(_encodeMap(map), 'measurements[0].measured_at');
     });
   });
+
+  group('biçim 3: programlar', () {
+    BackupData programData() {
+      return BackupData(
+        exportedAt: DateTime(2026, 10, 22, 9),
+        exercises: const [],
+        workouts: const [],
+        programs: const [
+          BackupProgram(
+            name: 'Üst/Alt',
+            isActive: true,
+            days: [
+              BackupProgramDay(
+                name: 'Göğüs + Sırt',
+                weekday: 4,
+                exercises: [
+                  BackupProgramExercise(
+                    exerciseName: 'Chest press',
+                    muscleGroup: MuscleGroup.chest,
+                    sets: 3,
+                    reps: 10,
+                    weightKg: 40,
+                  ),
+                  BackupProgramExercise(
+                    exerciseName: 'Şınav',
+                    muscleGroup: MuscleGroup.arms,
+                    sets: 2,
+                    reps: 15,
+                  ),
+                ],
+              ),
+              BackupProgramDay(
+                name: 'Serbest',
+                exercises: [],
+              ),
+            ],
+          ),
+          BackupProgram(name: 'Boş', isActive: false, days: []),
+        ],
+      );
+    }
+
+    /// Biçim 3 yedeğinin kök nesnesi; `programs` anahtarı [programs] ile değiştirilebilir.
+    Map<String, dynamic> validMapV3(List<dynamic> programs) {
+      return _validMap()
+        ..['format_version'] = 3
+        ..['programs'] = programs;
+    }
+
+    Map<String, dynamic> programMap({List<dynamic>? days}) {
+      return <String, dynamic>{
+        'name': 'Üst/Alt',
+        'is_active': true,
+        'days': days ??
+            <dynamic>[
+              <String, dynamic>{
+                'name': 'Gün',
+                'weekday': 4,
+                'exercises': <dynamic>[
+                  <String, dynamic>{
+                    'exercise': 'Bench Press',
+                    'muscle_group': 'chest',
+                    'sets': 3,
+                    'reps': 10,
+                    'weight_kg': 40,
+                  },
+                ],
+              },
+            ],
+      };
+    }
+
+    test('gidiş-dönüşte programlar, günler ve hedefler korunur', () {
+      final decoded = decodeBackupJson(encodeBackupJson(programData()));
+
+      expect(decoded.formatVersion, BackupData.currentFormatVersion);
+      expect(decoded.programs.length, 2);
+      final program = decoded.programs[0];
+      expect(program.name, 'Üst/Alt');
+      expect(program.isActive, isTrue);
+      expect(program.days.length, 2);
+      expect(program.days[0].weekday, 4);
+      expect(program.days[0].exercises[0].exerciseName, 'Chest press');
+      expect(program.days[0].exercises[0].muscleGroup, MuscleGroup.chest);
+      expect(program.days[0].exercises[0].sets, 3);
+      expect(program.days[0].exercises[0].reps, 10);
+      expect(program.days[0].exercises[0].weightKg, 40.0);
+      expect(program.days[0].exercises[1].weightKg, isNull);
+      expect(program.days[1].weekday, isNull);
+      expect(program.days[1].exercises, isEmpty);
+      expect(decoded.programs[1].isActive, isFalse);
+      expect(decoded.programs[1].days, isEmpty);
+    });
+
+    test('yazılan JSON biçim 3 anahtarlarını ve alanlarını içerir', () {
+      final map = jsonDecode(encodeBackupJson(programData()))
+          as Map<String, dynamic>;
+
+      expect(map['format_version'], 3);
+      final program = (map['programs'] as List).first as Map<String, dynamic>;
+      expect(program['name'], 'Üst/Alt');
+      expect(program['is_active'], isTrue);
+      final day = (program['days'] as List).first as Map<String, dynamic>;
+      expect(day['weekday'], 4);
+      expect(day['exercises'][0], {
+        'exercise': 'Chest press',
+        'muscle_group': 'chest',
+        'sets': 3,
+        'reps': 10,
+        'weight_kg': 40.0,
+      });
+    });
+
+    test('program yoksa anahtar boş liste olarak yazılır', () {
+      final map = jsonDecode(encodeBackupJson(_sampleData()))
+          as Map<String, dynamic>;
+
+      expect(map['programs'], isEmpty);
+    });
+
+    test('biçim 1 ve 2 dosyalarında programlar boş okunur', () {
+      final v1 = decodeBackupJson(_encodeMap(_validMap()..['programs'] = <dynamic>[
+        programMap(),
+      ]));
+      expect(v1.programs, isEmpty);
+
+      final v2 = decodeBackupJson(_encodeMap(_validMap()
+        ..['format_version'] = 2
+        ..['programs'] = <dynamic>[programMap()]));
+      expect(v2.programs, isEmpty);
+    });
+
+    test('biçim 3 dosyasında programs anahtarı yoksa boş liste', () {
+      final map = _validMap()..['format_version'] = 3;
+
+      final decoded = decodeBackupJson(_encodeMap(map));
+
+      expect(decoded.programs, isEmpty);
+    });
+
+    test('weekday 8 hata yolunu mesajda gösterir', () {
+      final program = programMap();
+      final day = (program['days'] as List).first as Map<String, dynamic>;
+      day['weekday'] = 8;
+      _expectCorrupt(
+        _encodeMap(validMapV3([program])),
+        'programs[0].days[0].weekday',
+      );
+    });
+
+    test('is_active metin ise hata yolunu mesajda gösterir', () {
+      final program = programMap()..['is_active'] = 'evet';
+      _expectCorrupt(
+        _encodeMap(validMapV3([program])),
+        'programs[0].is_active',
+      );
+    });
+
+    test('hareket hedefinde sets eksikse hata yolunu mesajda gösterir', () {
+      final program = programMap();
+      final day = (program['days'] as List).first as Map<String, dynamic>;
+      final entry = (day['exercises'] as List).first as Map<String, dynamic>;
+      entry.remove('sets');
+      _expectCorrupt(
+        _encodeMap(validMapV3([program])),
+        'programs[0].days[0].exercises[0].sets',
+      );
+    });
+
+    test('weight_kg null ise ağırlıksız hedef okunur', () {
+      final program = programMap();
+      final day = (program['days'] as List).first as Map<String, dynamic>;
+      final entry = (day['exercises'] as List).first as Map<String, dynamic>;
+      entry['weight_kg'] = null;
+
+      final decoded = decodeBackupJson(_encodeMap(validMapV3([program])));
+
+      expect(decoded.programs.single.days.single.exercises.single.weightKg, isNull);
+    });
+  });
 }

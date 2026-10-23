@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:exercise_tracking_app/data/backup/backup_json_codec.dart';
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/measurement_repository.dart';
+import 'package:exercise_tracking_app/data/repositories/program_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/data/services/backup_file_service.dart';
 import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
@@ -13,6 +14,7 @@ import 'package:exercise_tracking_app/ui/settings/settings_screen.dart';
 
 import '../../fakes/fake_backup_file_service.dart';
 import '../../fakes/fake_measurement_repository.dart';
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_settings_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
@@ -22,7 +24,7 @@ void main() {
   Future<ThemeController> pumpSettings(
     WidgetTester tester, {
     AppThemeId initialTheme = AppThemeId.defaultTheme,
-    WorkoutRepository? repository,
+    FakeWorkoutRepository? repository,
     BackupFileService? files,
   }) async {
     // Veriler bölümünün ekranda görünmesi için sayfayı uzun tutuyoruz.
@@ -35,14 +37,16 @@ void main() {
       FakeSettingsRepository(initialTheme: initialTheme),
     );
     await controller.load();
+    final workouts = repository ?? FakeWorkoutRepository();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          Provider<WorkoutRepository>.value(
-            value: repository ?? FakeWorkoutRepository(),
-          ),
+          Provider<WorkoutRepository>.value(value: workouts),
           Provider<MeasurementRepository>.value(
             value: FakeMeasurementRepository(),
+          ),
+          Provider<ProgramRepository>.value(
+            value: FakeProgramRepository(workouts),
           ),
           Provider<BackupFileService>.value(
             value: files ?? FakeBackupFileService(),

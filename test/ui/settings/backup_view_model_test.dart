@@ -9,7 +9,30 @@ import 'package:exercise_tracking_app/ui/settings/backup_view_model.dart';
 
 import '../../fakes/fake_backup_file_service.dart';
 import '../../fakes/fake_measurement_repository.dart';
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
+
+BackupProgram _upperLowerProgram() {
+  return BackupProgram(
+    name: 'Üst/Alt',
+    isActive: true,
+    days: [
+      BackupProgramDay(
+        name: 'Göğüs + Sırt',
+        weekday: 4,
+        exercises: const [
+          BackupProgramExercise(
+            exerciseName: 'Bench',
+            muscleGroup: MuscleGroup.chest,
+            sets: 3,
+            reps: 10,
+            weightKg: 40,
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
 BackupData _backupWith({
   List<BackupWorkout> workouts = const [],
@@ -37,16 +60,19 @@ final BackupWorkout _benchWorkout = BackupWorkout(
 void main() {
   late FakeWorkoutRepository repository;
   late FakeMeasurementRepository measurements;
+  late FakeProgramRepository programs;
   late FakeBackupFileService files;
   late BackupViewModel viewModel;
 
   setUp(() {
     repository = FakeWorkoutRepository();
     measurements = FakeMeasurementRepository();
+    programs = FakeProgramRepository(repository);
     files = FakeBackupFileService();
     viewModel = BackupViewModel(
       repository,
       measurements,
+      programs,
       files,
       clock: () => DateTime(2026, 3, 5, 9, 30),
     );
@@ -295,6 +321,80 @@ void main() {
       expect(viewModel.message, '1 antrenman eklendi, 0 antrenman atlandı');
       expect(viewModel.errorMessage, isNull);
       expect((await repository.getWorkoutSummaries()).length, 1);
+    });
+  });
+
+  group('programlar', () {
+    test('JSON yedeğinde programlar bulunur', () async {
+      await programs.importPrograms([_upperLowerProgram()]);
+
+      await viewModel.exportJson();
+
+      final decoded = decodeBackupJson(files.savedFiles.single.content);
+      expect(decoded.formatVersion, BackupData.currentFormatVersion);
+      final program = decoded.programs.single;
+      expect(program.name, 'Üst/Alt');
+      expect(program.isActive, isTrue);
+      expect(program.days.single.weekday, 4);
+      expect(program.days.single.exercises.single.exerciseName, 'Bench');
+      expect(program.days.single.exercises.single.weightKg, 40);
+      expect(viewModel.message, 'Yedek kaydedildi');
+    });
+
+    test('yalnız (günü olmayan) program varken JSON yedeği alınır, CSV "veri yok" der', () async {
+      // Günü olmayan program hareket oluşturmaz; yalnızca JSON'un "veri yok" kontrolünü test eder.
+      await programs.importPrograms([
+        const BackupProgram(name: 'Boş', isActive: true, days: []),
+      ]);
+
+      await viewModel.exportCsv();
+      expect(viewModel.errorMessage, 'Henüz kaydedilmiş veri yok.');
+      expect(files.sharedFiles, isEmpty);
+
+      viewModel.clearError();
+      await viewModel.exportJson();
+      expect(viewModel.errorMessage, isNull);
+      final decoded = decodeBackupJson(files.savedFiles.single.content);
+      expect(decoded.programs.single.name, 'Boş');
+    });
+
+    test('geri yükleme program sayısını mesajda gösterir', () async {
+      files.pickResult = encodeBackupJson(
+        BackupData(
+          exportedAt: DateTime(2026, 3, 5),
+          exercises: const [],
+          workouts: const [],
+          programs: [_upperLowerProgram()],
+        ),
+      );
+
+      await viewModel.importJson();
+
+      expect(
+        viewModel.message,
+        '0 antrenman eklendi, 0 antrenman atlandı, 1 program',
+      );
+      expect(viewModel.errorMessage, isNull);
+      final restored = await programs.getPrograms();
+      expect(restored.single.name, 'Üst/Alt');
+      expect(restored.single.isActive, isTrue);
+    });
+
+    test('aynı adlı program atlanır ve mesajda program sayılmaz', () async {
+      await programs.importPrograms([_upperLowerProgram()]);
+      files.pickResult = encodeBackupJson(
+        BackupData(
+          exportedAt: DateTime(2026, 3, 5),
+          exercises: const [],
+          workouts: const [],
+          programs: [_upperLowerProgram()],
+        ),
+      );
+
+      await viewModel.importJson();
+
+      expect(viewModel.message, '0 antrenman eklendi, 0 antrenman atlandı');
+      expect((await programs.getPrograms()).length, 1);
     });
   });
 

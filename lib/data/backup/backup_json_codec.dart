@@ -59,6 +59,30 @@ String encodeBackupJson(BackupData data) {
           'value': measurement.value,
         },
     ],
+    'programs': [
+      for (final program in data.programs)
+        {
+          'name': program.name,
+          'is_active': program.isActive,
+          'days': [
+            for (final day in program.days)
+              {
+                'name': day.name,
+                'weekday': day.weekday,
+                'exercises': [
+                  for (final entry in day.exercises)
+                    {
+                      'exercise': entry.exerciseName,
+                      'muscle_group': entry.muscleGroup.name,
+                      'sets': entry.sets,
+                      'reps': entry.reps,
+                      'weight_kg': entry.weightKg,
+                    },
+                ],
+              },
+          ],
+        },
+    ],
   };
   return const JsonEncoder.withIndent('  ').convert(map);
 }
@@ -127,6 +151,15 @@ BackupData decodeBackupJson(String source) {
     }
   }
 
+  // Programlar biçim 3'te eklendi; biçim 1 ve 2 dosyalarında liste boş kalır.
+  final programs = <BackupProgram>[];
+  if (version >= 3) {
+    final programList = _optionalList(root, 'programs', '');
+    for (var i = 0; i < programList.length; i++) {
+      programs.add(_decodeProgram(programList[i], 'programs[$i]'));
+    }
+  }
+
   return BackupData(
     formatVersion: version,
     exportedAt: exportedAt,
@@ -134,6 +167,7 @@ BackupData decodeBackupJson(String source) {
     workouts: workouts,
     measurementTypes: measurementTypes,
     measurements: measurements,
+    programs: programs,
   );
 }
 
@@ -201,6 +235,50 @@ BackupMeasurement _decodeMeasurement(Object? value, String path) {
   );
 }
 
+BackupProgram _decodeProgram(Object? value, String path) {
+  final item = _asMap(value, path);
+  final dayList = _requireList(item, 'days', path);
+  final days = <BackupProgramDay>[];
+  for (var i = 0; i < dayList.length; i++) {
+    days.add(_decodeProgramDay(dayList[i], '$path.days[$i]'));
+  }
+  return BackupProgram(
+    name: _requireString(item, 'name', path),
+    isActive: _requireBool(item, 'is_active', path),
+    days: days,
+  );
+}
+
+BackupProgramDay _decodeProgramDay(Object? value, String path) {
+  final item = _asMap(value, path);
+  final exerciseList = _requireList(item, 'exercises', path);
+  final exercises = <BackupProgramExercise>[];
+  for (var i = 0; i < exerciseList.length; i++) {
+    exercises.add(_decodeProgramExercise(exerciseList[i], '$path.exercises[$i]'));
+  }
+  final weekday = _optionalInt(item, 'weekday', path);
+  if (weekday != null && (weekday < DateTime.monday || weekday > DateTime.sunday)) {
+    _corrupt(_fieldPath(path, 'weekday'));
+  }
+  return BackupProgramDay(
+    name: _requireString(item, 'name', path),
+    weekday: weekday,
+    exercises: exercises,
+  );
+}
+
+BackupProgramExercise _decodeProgramExercise(Object? value, String path) {
+  final item = _asMap(value, path);
+  final weight = _optionalNum(item, 'weight_kg', path);
+  return BackupProgramExercise(
+    exerciseName: _requireString(item, 'exercise', path),
+    muscleGroup: _requireMuscleGroup(item, 'muscle_group', path),
+    sets: _requireInt(item, 'sets', path),
+    reps: _requireInt(item, 'reps', path),
+    weightKg: weight?.toDouble(),
+  );
+}
+
 /// [path] boşsa alan adı tek başına, değilse `path.key` biçiminde döner.
 String _fieldPath(String path, String key) => path.isEmpty ? key : '$path.$key';
 
@@ -250,6 +328,24 @@ int _requireInt(Map<String, dynamic> map, String key, String path) {
   if (value is int) return value;
   if (value is double && value == value.truncateToDouble()) return value.toInt();
   _corrupt(_fieldPath(path, key));
+}
+
+/// Anahtar yoksa ya da `null` ise `null`; varsa [_requireNum] kuralları uygulanır.
+num? _optionalNum(Map<String, dynamic> map, String key, String path) {
+  if (map[key] == null) return null;
+  return _requireNum(map, key, path);
+}
+
+/// Anahtar yoksa ya da `null` ise `null`; varsa [_requireInt] kuralları uygulanır.
+int? _optionalInt(Map<String, dynamic> map, String key, String path) {
+  if (map[key] == null) return null;
+  return _requireInt(map, key, path);
+}
+
+bool _requireBool(Map<String, dynamic> map, String key, String path) {
+  final value = map[key];
+  if (value is! bool) _corrupt(_fieldPath(path, key));
+  return value;
 }
 
 DateTime _requireDate(Map<String, dynamic> map, String key, String path) {
