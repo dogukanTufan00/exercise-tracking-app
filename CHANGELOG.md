@@ -7,7 +7,13 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.2.0] - 2026-10-23
+
+İlerleme sürümü: #3 (ilerleme grafikleri ve kişisel rekorlar) tamamlandı. 0.2.0-beta sürümlerinin içeriğine ek olarak:
+
 ### Eklendi
+- Antrenmanda rekor vurgusu: bir set hareketin önceki antrenmanlardaki en ağır ağırlığını ya da tahmini 1RM'ini
+  geçerse satırında 🏆 rozeti çıkar, telefon titrer ve "Yeni rekor" bildirimi görünür (#8).
 - Hareket düzenleme: yanlış işaretlenmiş bir hareketin adı ve kas grubu, hareket detay ekranındaki ✏️ simgesinden
   ya da antrenman kartının ⋮ menüsünden düzeltilebilir; değişiklik tüm geçmişe yansır (#10).
 
@@ -55,7 +61,8 @@ Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor 
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.2.0-beta.2...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0
 [0.2.0-beta.2]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.1
 [0.1.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.1.0
