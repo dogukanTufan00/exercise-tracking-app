@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.4.0] - 2026-10-23
+
+Program sürümü.
+
 ### Eklendi
 - Program sekmesi: haftalık programını günlere böl, her güne hareket ve hedef (set × tekrar, isteğe bağlı ağırlık)
   ekle; günleri haftanın bir gününe bağla ya da esnek bırak; birden çok program, biri etkin (#16).
@@ -82,7 +86,8 @@ Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor 
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.3.0...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.4.0
 [0.3.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0
 [0.2.0-beta.2]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.2
