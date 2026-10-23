@@ -164,7 +164,7 @@ void main() {
 
       expect(text, contains('\n  "format": "exercise-tracking-app-backup"'));
       expect(map['format'], 'exercise-tracking-app-backup');
-      expect(map['format_version'], 1);
+      expect(map['format_version'], BackupData.currentFormatVersion);
       expect(map['exported_at'], '2026-10-18T10:00:00.000');
       expect(map['exercises'], [
         {'name': 'Bench Press', 'muscle_group': 'chest'},
@@ -344,7 +344,7 @@ void main() {
     });
 
     test('format_version daha yeniyse güncelleme mesajı', () {
-      final map = _validMap()..['format_version'] = 2;
+      final map = _validMap()..['format_version'] = BackupData.currentFormatVersion + 1;
 
       expect(
         () => decodeBackupJson(_encodeMap(map)),

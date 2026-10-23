@@ -1,6 +1,8 @@
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
+import '../models/measurement.dart';
+
 /// Veritabanını açar, şemayı oluşturur ve tek bir [Database] örneği paylaşır.
 ///
 /// Şema değişikliklerinde [schemaVersion] artırılır ve `onUpgrade` yazılır (bkz. docs/ARCHITECTURE.md §4).
@@ -12,7 +14,7 @@ class DatabaseService {
 
   DatabaseService._(this._factory, this._path);
 
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
 
   /// Her biri ayrı çalıştırılan şema ifadeleri (docs/ARCHITECTURE.md §4 ile birebir).
   static const List<String> _schemaStatements = [
@@ -53,6 +55,32 @@ class DatabaseService {
     'CREATE INDEX idx_sets_we ON exercise_sets(workout_exercise_id)',
   ];
 
+  /// Sürüm 2 ifadeleri: vücut ölçümleri (docs/ARCHITECTURE.md §4 "Şema 2" ile birebir).
+  /// Mevcut tablolara dokunmaz.
+  static const List<String> _schemaV2Statements = [
+    '''
+    CREATE TABLE measurement_types (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      name         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+      unit         TEXT    NOT NULL,
+      position     INTEGER NOT NULL,
+      builtin_key  TEXT    UNIQUE
+    )
+    ''',
+    '''
+    CREATE TABLE body_measurements (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      type_id      INTEGER NOT NULL REFERENCES measurement_types(id) ON DELETE CASCADE,
+      measured_at  TEXT    NOT NULL,
+      value        REAL    NOT NULL CHECK (value > 0)
+    )
+    ''',
+    'CREATE INDEX idx_measurements_type ON body_measurements(type_id, measured_at)',
+  ];
+
+  /// Yalnızca testler için: sürüm 1 şema ifadeleri (gerçek bir v1 veritabanı kurmak için).
+  static List<String> get schemaV1Statements => _schemaStatements;
+
   final DatabaseFactory _factory;
   final String? _path;
 
@@ -80,6 +108,7 @@ class DatabaseService {
           version: schemaVersion,
           onConfigure: _onConfigure,
           onCreate: _onCreate,
+          onUpgrade: _onUpgrade,
           // Her DatabaseService kendi bağlantısını açar; iki örnek aynı veritabanını paylaşmaz.
           singleInstance: false,
         ),
@@ -96,11 +125,42 @@ class DatabaseService {
     await db.execute('PRAGMA foreign_keys = ON');
   }
 
+  /// Yeni kurulum: tüm sürümlerin ifadeleri ve yerleşik ölçüm türleri tek transaction'da.
   Future<void> _onCreate(Database db, int version) async {
     await db.transaction((txn) async {
       for (final statement in _schemaStatements) {
         await txn.execute(statement);
       }
+      for (final statement in _schemaV2Statements) {
+        await txn.execute(statement);
+      }
+      await _insertBuiltinMeasurementTypes(txn);
     });
+  }
+
+  /// Şema yükseltmesi. Her yeni sürüm için aynı desen: `if (oldVersion < N)` bloğu içinde yalnızca
+  /// o sürümün yeni tablolarını/indexlerini ekle; mevcut tablolar silinmez, satırlar değişmez.
+  /// Sürüm 1 → 2 (ölçümler): tek transaction'da yeni tablolar ve yerleşik türler.
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.transaction((txn) async {
+        for (final statement in _schemaV2Statements) {
+          await txn.execute(statement);
+        }
+        await _insertBuiltinMeasurementTypes(txn);
+      });
+    }
+  }
+
+  /// Yerleşik ölçüm türlerini [builtinMeasurementTypes] sırasıyla ekler (position 0, 1, 2…).
+  static Future<void> _insertBuiltinMeasurementTypes(DatabaseExecutor executor) async {
+    for (final (position, type) in builtinMeasurementTypes.indexed) {
+      await executor.insert('measurement_types', {
+        'name': type.name,
+        'unit': type.unit,
+        'position': position,
+        'builtin_key': type.key,
+      });
+    }
   }
 }

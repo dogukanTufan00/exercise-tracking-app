@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Eklendi
+- Antrenmanlar listesi haftalara bölünür: her haftanın başında "12–18 Ekim · 3 antrenman · 48 set" (#15).
+- Vücut ölçümleri için veritabanı (ilk şema geçişi, mevcut veriler korunur) (#14).
+
 ## [0.2.0] - 2026-10-23
 
 İlerleme sürümü: #3 (ilerleme grafikleri ve kişisel rekorlar) tamamlandı. 0.2.0-beta sürümlerinin içeriğine ek olarak:

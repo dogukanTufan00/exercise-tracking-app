@@ -6,6 +6,7 @@ import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
 import 'package:exercise_tracking_app/ui/history/history_screen.dart';
 
 import 'fakes/fake_backup_file_service.dart';
+import 'fakes/fake_measurement_repository.dart';
 import 'fakes/fake_settings_repository.dart';
 import 'fakes/fake_workout_repository.dart';
 
@@ -20,6 +21,7 @@ void main() {
     await tester.pumpWidget(
       ExerciseTrackerApp(
         workoutRepository: FakeWorkoutRepository(),
+        measurementRepository: FakeMeasurementRepository(),
         settingsRepository: settingsRepository,
         themeController: themeController,
         backupFileService: FakeBackupFileService(),
