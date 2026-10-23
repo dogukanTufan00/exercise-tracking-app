@@ -393,6 +393,57 @@ class FakeWorkoutRepository implements WorkoutRepository {
     );
   }
 
+  // ------------------------------------------------------- Program desteği (yalnızca testler)
+
+  /// Katalogdaki bir hareketi id ile döndürür; yoksa `null`.
+  Exercise? exerciseById(int id) => _exercises[id];
+
+  /// Program gününden bir antrenman oluşturur (yalnızca `FakeProgramRepository` ve testler için):
+  /// başlık ve [programDayId] verilir, [entries] sırasıyla hareket olur ve her birinin hedefi
+  /// kopyalanır. Set eklenmez. Hareket yoksa [ArgumentError].
+  Future<Workout> createWorkoutFromProgram({
+    required String title,
+    required int programDayId,
+    required DateTime startedAt,
+    required List<({int exerciseId, ExerciseTarget? target})> entries,
+  }) async {
+    for (final entry in entries) {
+      _requireExercise(entry.exerciseId);
+    }
+
+    final workout = Workout(
+      id: _nextWorkoutId++,
+      startedAt: startedAt,
+      title: _cleanText(title),
+      programDayId: programDayId,
+    );
+    _workouts[workout.id] = workout;
+    for (var position = 0; position < entries.length; position++) {
+      final we = WorkoutExercise(
+        id: _nextWorkoutExerciseId++,
+        workoutId: workout.id,
+        exerciseId: entries[position].exerciseId,
+        position: position,
+        target: entries[position].target,
+      );
+      _workoutExercises[we.id] = we;
+    }
+    return workout;
+  }
+
+  /// Bir program günü silindiğinde bağlı antrenmanların [Workout.programDayId] değerini `null` yapar
+  /// (SQLite'taki ON DELETE SET NULL davranışı).
+  void detachProgramDay(int programDayId) {
+    for (final workout in _workouts.values.toList()) {
+      if (workout.programDayId != programDayId) continue;
+      _workouts[workout.id] = Workout(
+        id: workout.id,
+        startedAt: workout.startedAt,
+        title: workout.title,
+      );
+    }
+  }
+
   // ------------------------------------------------------------------ Yardımcılar
 
   /// Başlığı / notu kırpar; boşsa `null` döner.

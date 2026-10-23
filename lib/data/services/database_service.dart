@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 
@@ -14,7 +15,7 @@ class DatabaseService {
 
   DatabaseService._(this._factory, this._path);
 
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
 
   /// Her biri ayrı çalıştırılan şema ifadeleri (docs/ARCHITECTURE.md §4 ile birebir).
   static const List<String> _schemaStatements = [
@@ -78,8 +79,51 @@ class DatabaseService {
     'CREATE INDEX idx_measurements_type ON body_measurements(type_id, measured_at)',
   ];
 
+  /// Sürüm 3 ifadeleri: antrenman programları (docs/ARCHITECTURE.md §4 "Şema 3" ile birebir).
+  /// Yeni tablolar eklenir; mevcut iki tabloya yalnızca NULL kabul eden sütunlar eklenir.
+  static const List<String> _schemaV3Statements = [
+    '''
+    CREATE TABLE programs (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      name        TEXT    NOT NULL,
+      is_active   INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+      created_at  TEXT    NOT NULL
+    )
+    ''',
+    '''
+    CREATE TABLE program_days (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_id  INTEGER NOT NULL REFERENCES programs(id) ON DELETE CASCADE,
+      name        TEXT    NOT NULL,
+      weekday     INTEGER CHECK (weekday BETWEEN 1 AND 7),
+      position    INTEGER NOT NULL
+    )
+    ''',
+    'CREATE INDEX idx_program_days_program ON program_days(program_id)',
+    '''
+    CREATE TABLE program_day_exercises (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      program_day_id    INTEGER NOT NULL REFERENCES program_days(id) ON DELETE CASCADE,
+      exercise_id       INTEGER NOT NULL REFERENCES exercises(id)    ON DELETE RESTRICT,
+      position          INTEGER NOT NULL,
+      target_sets       INTEGER NOT NULL CHECK (target_sets > 0),
+      target_reps       INTEGER NOT NULL CHECK (target_reps > 0),
+      target_weight_kg  REAL    CHECK (target_weight_kg >= 0)
+    )
+    ''',
+    'CREATE INDEX idx_program_day_exercises_day ON program_day_exercises(program_day_id)',
+    'ALTER TABLE workouts          ADD COLUMN program_day_id   INTEGER REFERENCES program_days(id) ON DELETE SET NULL',
+    'ALTER TABLE workout_exercises ADD COLUMN target_sets      INTEGER',
+    'ALTER TABLE workout_exercises ADD COLUMN target_reps      INTEGER',
+    'ALTER TABLE workout_exercises ADD COLUMN target_weight_kg REAL',
+  ];
+
   /// Yalnızca testler için: sürüm 1 şema ifadeleri (gerçek bir v1 veritabanı kurmak için).
   static List<String> get schemaV1Statements => _schemaStatements;
+
+  /// Yalnızca testler için: sürüm 2 şema ifadeleri (gerçek bir v2 veritabanı kurmak için).
+  @visibleForTesting
+  static List<String> get schemaV2Statements => _schemaV2Statements;
 
   final DatabaseFactory _factory;
   final String? _path;
@@ -135,12 +179,17 @@ class DatabaseService {
         await txn.execute(statement);
       }
       await _insertBuiltinMeasurementTypes(txn);
+      for (final statement in _schemaV3Statements) {
+        await txn.execute(statement);
+      }
     });
   }
 
   /// Şema yükseltmesi. Her yeni sürüm için aynı desen: `if (oldVersion < N)` bloğu içinde yalnızca
   /// o sürümün yeni tablolarını/indexlerini ekle; mevcut tablolar silinmez, satırlar değişmez.
   /// Sürüm 1 → 2 (ölçümler): tek transaction'da yeni tablolar ve yerleşik türler.
+  /// Sürüm 2 → 3 (programlar): tek transaction'da yeni tablolar ve mevcut tablolara NULL sütunlar.
+  /// v1'den açılan veritabanı iki bloğu da sırayla çalıştırır.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.transaction((txn) async {
@@ -148,6 +197,13 @@ class DatabaseService {
           await txn.execute(statement);
         }
         await _insertBuiltinMeasurementTypes(txn);
+      });
+    }
+    if (oldVersion < 3) {
+      await db.transaction((txn) async {
+        for (final statement in _schemaV3Statements) {
+          await txn.execute(statement);
+        }
       });
     }
   }

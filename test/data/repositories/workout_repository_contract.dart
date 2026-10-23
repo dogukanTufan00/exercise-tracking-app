@@ -753,5 +753,24 @@ void runWorkoutRepositoryContractTests(
         }
       });
     });
+
+    group('program alanları (şema 3)', () {
+      test('normal antrenmanda programDayId ve hareket hedefi null', () async {
+        final workout = await repo.createWorkout(title: 'Normal');
+        final bench = await exercise('Bench Press');
+        final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+        await repo.addSet(we.id, weightKg: 60, reps: 10);
+
+        final summary = (await repo.getWorkoutSummaries()).single;
+        expect(summary.workout.programDayId, isNull);
+
+        final detail = await repo.getWorkoutDetail(workout.id);
+        expect(detail!.workout.programDayId, isNull);
+        expect(detail.exercises.single.workoutExercise.target, isNull);
+
+        final history = await repo.getExerciseHistory(bench.id);
+        expect(history.single.workout.programDayId, isNull);
+      });
+    });
   });
 }

@@ -8,6 +8,7 @@ import 'package:exercise_tracking_app/ui/history/history_screen.dart';
 
 import 'fakes/fake_backup_file_service.dart';
 import 'fakes/fake_measurement_repository.dart';
+import 'fakes/fake_program_repository.dart';
 import 'fakes/fake_settings_repository.dart';
 import 'fakes/fake_workout_repository.dart';
 
@@ -19,11 +20,13 @@ void main() {
     final settingsRepository = FakeSettingsRepository();
     final themeController = ThemeController(settingsRepository);
     await themeController.load();
+    final workouts = FakeWorkoutRepository();
 
     await tester.pumpWidget(
       ExerciseTrackerApp(
-        workoutRepository: FakeWorkoutRepository(),
+        workoutRepository: workouts,
         measurementRepository: FakeMeasurementRepository(),
+        programRepository: FakeProgramRepository(workouts),
         settingsRepository: settingsRepository,
         themeController: themeController,
         backupFileService: FakeBackupFileService(),

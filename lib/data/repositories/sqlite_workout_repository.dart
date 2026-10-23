@@ -78,6 +78,7 @@ class SqliteWorkoutRepository implements WorkoutRepository {
 
     final exerciseRows = await db.rawQuery('''
       SELECT we.id, we.workout_id, we.exercise_id, we.position, we.note,
+             we.target_sets, we.target_reps, we.target_weight_kg,
              e.name AS exercise_name, e.muscle_group AS exercise_muscle_group
       FROM workout_exercises we
       JOIN exercises e ON e.id = we.exercise_id
@@ -450,7 +451,7 @@ class SqliteWorkoutRepository implements WorkoutRepository {
 
     // Tek sorgu: her satır bir set; antrenman bilgisi her satırda tekrar eder.
     final rows = await db.rawQuery('''
-      SELECT w.id AS w_id, w.started_at, w.title,
+      SELECT w.id AS w_id, w.started_at, w.title, w.program_day_id,
              s.id, s.workout_exercise_id, s.set_number, s.weight_kg, s.reps
       FROM exercise_sets s
       JOIN workout_exercises we ON we.id = s.workout_exercise_id

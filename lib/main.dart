@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 
 import 'data/repositories/measurement_repository.dart';
 import 'data/repositories/prefs_settings_repository.dart';
+import 'data/repositories/program_repository.dart';
 import 'data/repositories/settings_repository.dart';
 import 'data/repositories/sqlite_measurement_repository.dart';
+import 'data/repositories/sqlite_program_repository.dart';
 import 'data/repositories/sqlite_workout_repository.dart';
 import 'data/repositories/workout_repository.dart';
 import 'data/services/backup_file_service.dart';
@@ -17,10 +19,11 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('tr');
 
-  // Tek veritabanı bağlantısı; antrenman ve ölçüm repository'leri aynı örneği kullanır.
+  // Tek veritabanı bağlantısı; antrenman, ölçüm ve program repository'leri aynı örneği kullanır.
   final databaseService = DatabaseService();
   final workoutRepository = SqliteWorkoutRepository(databaseService);
   final measurementRepository = SqliteMeasurementRepository(databaseService);
+  final programRepository = SqliteProgramRepository(databaseService);
   final settingsRepository = PrefsSettingsRepository();
   final themeController = ThemeController(settingsRepository);
   await themeController.load();
@@ -29,6 +32,7 @@ Future<void> main() async {
     ExerciseTrackerApp(
       workoutRepository: workoutRepository,
       measurementRepository: measurementRepository,
+      programRepository: programRepository,
       settingsRepository: settingsRepository,
       themeController: themeController,
       backupFileService: DeviceBackupFileService(),
@@ -42,6 +46,7 @@ class ExerciseTrackerApp extends StatelessWidget {
     super.key,
     required this.workoutRepository,
     required this.measurementRepository,
+    required this.programRepository,
     required this.settingsRepository,
     required this.themeController,
     required this.backupFileService,
@@ -49,6 +54,7 @@ class ExerciseTrackerApp extends StatelessWidget {
 
   final WorkoutRepository workoutRepository;
   final MeasurementRepository measurementRepository;
+  final ProgramRepository programRepository;
   final SettingsRepository settingsRepository;
   final ThemeController themeController;
   final BackupFileService backupFileService;
@@ -59,6 +65,7 @@ class ExerciseTrackerApp extends StatelessWidget {
       providers: [
         Provider<WorkoutRepository>.value(value: workoutRepository),
         Provider<MeasurementRepository>.value(value: measurementRepository),
+        Provider<ProgramRepository>.value(value: programRepository),
         Provider<SettingsRepository>.value(value: settingsRepository),
         Provider<BackupFileService>.value(value: backupFileService),
         ChangeNotifierProvider<ThemeController>.value(value: themeController),
