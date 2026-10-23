@@ -150,6 +150,26 @@ class WorkoutViewModel extends ChangeNotifier {
     });
   }
 
+  /// Katalogdaki hareketi günceller ve antrenmanı yeniden yükler. Başarılıysa `true`.
+  /// Hata mesajları detay ekranındakilerle aynı.
+  Future<bool> updateExercise(int exerciseId, String name, MuscleGroup muscleGroup) async {
+    try {
+      await _repository.updateExercise(exerciseId, name: name, muscleGroup: muscleGroup);
+    } on DuplicateExerciseException {
+      _errorMessage = 'Bu adda bir hareket zaten var.';
+      _notify();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Hareket güncellenemedi.';
+      _notify();
+      return false;
+    }
+
+    // Güncelleme kaydedildi; yeniden yükleme başarısızsa yalnızca ekran hatası gösterilir.
+    await _run('Hareket güncellenemedi.', _reload);
+    return true;
+  }
+
   /// Hiç hareket yoksa antrenmanı siler. Ekran geri çıkarken çağrılır.
   Future<void> discardIfEmpty() async {
     await _run('Antrenman silinemedi.', () async {

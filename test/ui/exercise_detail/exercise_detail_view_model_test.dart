@@ -121,4 +121,86 @@ void main() {
     viewModel.clearError();
     expect(viewModel.errorMessage, isNull);
   });
+
+  group('updateExercise', () {
+    test('başarılı güncelleme exercise değerini değiştirir ve dinleyicileri uyarır', () async {
+      final bench = await repository.createExercise('Bench Press', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(repository, exercise: bench);
+      addTearDown(viewModel.dispose);
+      var notified = 0;
+      viewModel.addListener(() => notified++);
+
+      final ok = await viewModel.updateExercise('Dumbbell Press', MuscleGroup.arms);
+
+      expect(ok, isTrue);
+      expect(viewModel.exercise.id, bench.id);
+      expect(viewModel.exercise.name, 'Dumbbell Press');
+      expect(viewModel.exercise.muscleGroup, MuscleGroup.arms);
+      expect(viewModel.errorMessage, isNull);
+      expect(notified, 1);
+    });
+
+    test('aynı ad başka hareketle çakışırsa mesaj gösterilir ve false döner', () async {
+      await repository.createExercise('Squat', MuscleGroup.legs);
+      final bench = await repository.createExercise('Bench Press', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(repository, exercise: bench);
+      addTearDown(viewModel.dispose);
+
+      final ok = await viewModel.updateExercise('squat', MuscleGroup.chest);
+
+      expect(ok, isFalse);
+      expect(viewModel.errorMessage, 'Bu adda bir hareket zaten var.');
+      expect(viewModel.exercise, bench);
+    });
+
+    test('değer değişmediyse repository çağrılmaz', () async {
+      final counting = _CountingRepository();
+      final bench = await counting.createExercise('Bench Press', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(counting, exercise: bench);
+      addTearDown(viewModel.dispose);
+
+      final ok = await viewModel.updateExercise('  Bench Press ', MuscleGroup.chest);
+
+      expect(ok, isTrue);
+      expect(counting.updateCalls, 0);
+    });
+
+    test('beklenmeyen hata genel Türkçe mesaj gösterir', () async {
+      final failing = _FailingUpdateRepository();
+      final bench = await failing.createExercise('Bench Press', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(failing, exercise: bench);
+      addTearDown(viewModel.dispose);
+
+      final ok = await viewModel.updateExercise('Dumbbell Press', MuscleGroup.arms);
+
+      expect(ok, isFalse);
+      expect(viewModel.errorMessage, 'Hareket güncellenemedi.');
+      expect(viewModel.exercise, bench);
+    });
+  });
+}
+
+class _CountingRepository extends FakeWorkoutRepository {
+  int updateCalls = 0;
+
+  @override
+  Future<Exercise> updateExercise(
+    int id, {
+    required String name,
+    required MuscleGroup muscleGroup,
+  }) {
+    updateCalls++;
+    return super.updateExercise(id, name: name, muscleGroup: muscleGroup);
+  }
+}
+
+class _FailingUpdateRepository extends FakeWorkoutRepository {
+  @override
+  Future<Exercise> updateExercise(
+    int id, {
+    required String name,
+    required MuscleGroup muscleGroup,
+  }) async {
+    throw Exception('veritabanı hatası');
+  }
 }

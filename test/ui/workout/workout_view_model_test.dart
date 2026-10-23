@@ -366,4 +366,35 @@ void main() {
       vm.dispose();
     });
   });
+
+  group('hareket düzenleme', () {
+    test('updateExercise sonrası detail yeni adı ve kas grubunu içerir', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+
+      final ok = await vm.updateExercise(squat.id, 'Front Squat', MuscleGroup.back);
+
+      expect(ok, isTrue);
+      final entry = vm.detail!.exercises.single;
+      expect(entry.workoutExercise.id, we.id);
+      expect(entry.exercise.name, 'Front Squat');
+      expect(entry.exercise.muscleGroup, MuscleGroup.back);
+      expect(vm.errorMessage, isNull);
+      vm.dispose();
+    });
+
+    test('çakışmada errorMessage ayarlanır ve false döner', () async {
+      final workout = await repo.createWorkout();
+      await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+
+      final ok = await vm.updateExercise(bench.id, 'SQUAT', MuscleGroup.chest);
+
+      expect(ok, isFalse);
+      expect(vm.errorMessage, 'Bu adda bir hareket zaten var.');
+      expect(vm.detail!.exercises.single.exercise.name, 'Squat');
+      vm.dispose();
+    });
+  });
 }

@@ -189,6 +189,39 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     });
   }
 
+  @override
+  Future<Exercise> updateExercise(
+    int id, {
+    required String name,
+    required MuscleGroup muscleGroup,
+  }) async {
+    final db = await _db;
+    final cleanName = _cleanText(name);
+    if (cleanName == null) {
+      throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
+    }
+    final key = normalizeForSearch(cleanName);
+
+    return db.transaction<Exercise>((txn) async {
+      await _requireExists(txn, 'exercises', id, 'Hareket bulunamadı');
+
+      // Kendi satırı kontrolün dışında tutulur: kendi adının harf büyüklüğünü değiştirebilir.
+      final existing = await txn.query('exercises', columns: ['id', 'name']);
+      final isDuplicate = existing.any(
+        (row) => row['id'] != id && normalizeForSearch(row['name'] as String) == key,
+      );
+      if (isDuplicate) throw DuplicateExerciseException(cleanName);
+
+      await txn.update(
+        'exercises',
+        {'name': cleanName, 'muscle_group': muscleGroup.name},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return Exercise(id: id, name: cleanName, muscleGroup: muscleGroup);
+    });
+  }
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   @override

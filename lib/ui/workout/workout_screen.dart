@@ -6,6 +6,7 @@ import '../../data/repositories/workout_repository.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
+import '../core/widgets/exercise_edit_dialog.dart';
 import '../exercise_detail/exercise_detail_screen.dart';
 import '../exercise_picker/exercise_picker_screen.dart';
 import 'widgets/exercise_card.dart';
@@ -120,11 +121,8 @@ class _WorkoutView extends StatelessWidget {
               onToggleExpanded: () =>
                   vm.toggleExpanded(entry.workoutExercise.id),
               onRemove: () => vm.removeExercise(entry.workoutExercise.id),
-              onShowProgress: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => ExerciseDetailScreen(exercise: entry.exercise),
-                ),
-              ),
+              onShowProgress: () => _showProgress(context, vm, entry.exercise),
+              onEditExercise: () => _editExercise(context, vm, entry.exercise),
               onDraftWeightChanged: (kg) =>
                   vm.setDraftWeight(entry.workoutExercise.id, kg),
               onDraftRepsChanged: (reps) =>
@@ -156,6 +154,31 @@ class _WorkoutView extends StatelessWidget {
     if (exercise != null) {
       await vm.addExercise(exercise);
     }
+  }
+
+  /// Hareketin detay ekranını açar; dönünce orada yapılmış düzenlemeler için antrenmanı yeniler.
+  Future<void> _showProgress(
+    BuildContext context,
+    WorkoutViewModel vm,
+    Exercise exercise,
+  ) async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => ExerciseDetailScreen(exercise: exercise),
+      ),
+    );
+    await vm.load();
+  }
+
+  /// Katalogdaki hareketin adını ve kas grubunu düzenler (diyalog onaylanırsa).
+  Future<void> _editExercise(
+    BuildContext context,
+    WorkoutViewModel vm,
+    Exercise exercise,
+  ) async {
+    final edit = await showExerciseEditDialog(context, exercise);
+    if (edit == null) return;
+    await vm.updateExercise(exercise.id, edit.name, edit.muscleGroup);
   }
 
   Future<void> _editTitle(BuildContext context, WorkoutViewModel vm) async {

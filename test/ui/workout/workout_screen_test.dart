@@ -220,6 +220,32 @@ void main() {
     expect(detailAppBar, findsOneWidget);
   });
 
+  testWidgets('⋮ → Hareketi düzenle → kaydet → kart başlığında yeni ad', (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    await repo.addExerciseToWorkout(workout.id, bench.id);
+
+    await pumpWorkout(tester, workout.id);
+    await tester.tap(find.byTooltip('Seçenekler'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hareketi düzenle'));
+    await tester.pumpAndSettle();
+    // Kart açık olduğu için notlar alanı da TextField; yalnızca diyalogdakini hedefle.
+    await tester.enterText(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(TextField),
+      ),
+      'Dumbbell Press',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Dumbbell Press'), findsOneWidget);
+    expect(find.text('Bench Press'), findsNothing);
+  });
+
   group('ağırlık/tekrar adımlayıcıları', () {
     final weightStepper = find.byKey(const ValueKey('weight-stepper'));
     final repsStepper = find.byKey(const ValueKey('reps-stepper'));

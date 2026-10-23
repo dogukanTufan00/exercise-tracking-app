@@ -264,3 +264,21 @@ Yeni tablo yoktur; her şey `exercise_sets` verisinden hesaplanır (`lib/domain/
   (karta dokunmak kartı açıp kapatır).
 - Adımlar: #5 veri ve hesaplama → #6 detay ekranı → #7 giriş noktaları → #8 antrenmanda rekor vurgusu.
   Hepsi v0.2.0 ile yayınlanır.
+
+## 13. Yol haritası ve kararlar (2026-10-23)
+
+Sıra (her madde bir GitHub issue'su):
+
+1. **#10 Hareket düzenleme:** katalogdaki hareketin adı ve kas grubu düzeltilebilir; değişiklik tüm geçmişe
+   yansır (setler harekete id ile bağlı). Şema değişmez.
+2. **#8 Antrenmanda rekor vurgusu** → **v0.2.0**.
+3. **#13 Alt gezinme çubuğu**, **#14 Profil ve ölçümler**, **#15 Haftalık gruplama** → **v0.3.0**.
+   - Ölçümler: Kilo, Boy, Sağ/Sol kol, Sağ/Sol bacak, Bel, Göğüs, Kalça, Boyun + kullanıcının eklediği
+     sınırsız özel ölçüm (ad + birim). Her ölçüm tarihli kayıttır.
+   - #14 uygulamanın **ilk şema geçişi** (v1 → v2): yalnızca yeni tablolar, mevcut veri değişmez;
+     bir v1 veritabanını yükselten migration testi zorunlu. Yedek biçimi `format_version` 2 olur, 1 okunmaya devam eder.
+   - Haftalık gruplama tarihten hesaplanır (Pazartesi–Pazar), veri değişmez. Kullanıcının kendi grupları şimdilik yok.
+4. **#16 Program** → **v0.4.0**. **Karma model:** günler haftanın günlerine göre planlanır, antrenman başlatırken
+   bugünün günü önerilir ama programdaki herhangi bir gün seçilebilir. "Kaçırıldı" işareti, seri ya da uyarı yok;
+   gün kaçırmak cezalandırılmaz.
+5. Sonra: **#11** antrenmanda hareketi değiştirme, **#12** aynı hareketin iki kaydını birleştirme, kullanıcı grupları.

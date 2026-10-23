@@ -131,11 +131,14 @@ class _ExercisesViewState extends State<_ExercisesView> {
     );
   }
 
-  Future<void> _openDetail(BuildContext context, Exercise exercise) {
-    return Navigator.of(context).push<void>(
+  /// Detaydan dönünce hareket adı ya da kas grubu değişmiş olabileceği için listeyi yeniler.
+  Future<void> _openDetail(BuildContext context, Exercise exercise) async {
+    await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => ExerciseDetailScreen(exercise: exercise),
       ),
     );
+    if (!mounted) return;
+    await _viewModel.search(_viewModel.query);
   }
 }

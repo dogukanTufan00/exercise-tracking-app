@@ -1,6 +1,7 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
+import 'package:exercise_tracking_app/ui/core/widgets/muscle_group_chip.dart';
 import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_screen.dart';
 import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_view_model.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -157,5 +158,27 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('düzenle → yeni ad AppBar\'da, yeni kas grubu etiketi görünür', (tester) async {
+    final curl = await repo.createExercise('Biceps curl', MuscleGroup.legs);
+    await workoutWith(curl, DateTime(2026, 10, 1), [(10, 10)]);
+
+    await pumpDetail(tester, curl);
+    await tester.tap(find.byTooltip('Hareketi düzenle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Dumbbell Curl');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(MuscleGroupChip, 'Kol'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Dumbbell Curl')),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(MuscleGroupChip, 'Kol'), findsOneWidget);
+    expect(find.widgetWithText(MuscleGroupChip, 'Bacak'), findsNothing);
   });
 }

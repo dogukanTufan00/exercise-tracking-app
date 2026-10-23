@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Eklendi
+- Hareket düzenleme: yanlış işaretlenmiş bir hareketin adı ve kas grubu, hareket detay ekranındaki ✏️ simgesinden
+  ya da antrenman kartının ⋮ menüsünden düzeltilebilir; değişiklik tüm geçmişe yansır (#10).
+
 ### Değişti
 - Uygulamanın adı "Exercise Tracker" oldu ve yeni bir ikonu var: sarı-lacivert dambıl ve yukarı ok,
   Android'de her telefonun ikon şekline uyan "adaptive icon" olarak (#2).

@@ -234,6 +234,88 @@ void runWorkoutRepositoryContractTests(
           );
         }
       });
+
+      test('updateExercise adı ve kas grubunu değiştirir; arama yeni adla bulur', () async {
+        final curl = await exercise('Biceps curl', MuscleGroup.legs);
+
+        final updated = await repo.updateExercise(
+          curl.id,
+          name: 'Dumbbell Curl',
+          muscleGroup: MuscleGroup.arms,
+        );
+
+        expect(updated, Exercise(id: curl.id, name: 'Dumbbell Curl', muscleGroup: MuscleGroup.arms));
+        expect(await repo.searchExercises('dumbbell'), [updated]);
+        expect(await repo.searchExercises('biceps'), isEmpty);
+      });
+
+      test('updateExercise adı kırpar', () async {
+        final thrust = await exercise('Glute Bridge', MuscleGroup.legs);
+
+        final updated = await repo.updateExercise(
+          thrust.id,
+          name: '  Hip Thrust ',
+          muscleGroup: MuscleGroup.legs,
+        );
+
+        expect(updated.name, 'Hip Thrust');
+        expect(await repo.searchExercises('hip thrust'), [updated]);
+      });
+
+      test('updateExercise boş adı ArgumentError ile reddeder ve hareketi değiştirmez', () async {
+        final bench = await exercise('Bench Press');
+
+        await expectLater(
+          repo.updateExercise(bench.id, name: '   ', muscleGroup: MuscleGroup.arms),
+          throwsArgumentError,
+        );
+        expect(await repo.searchExercises('bench'), [bench]);
+      });
+
+      test('updateExercise başka hareketin adıyla (harf ve Türkçe harf farkı dahil) çakışırsa reddeder', () async {
+        await exercise('Şınav', MuscleGroup.chest);
+        final bench = await exercise('Bench Press');
+
+        await expectLater(
+          repo.updateExercise(bench.id, name: 'SINAV', muscleGroup: MuscleGroup.chest),
+          throwsA(isA<DuplicateExerciseException>()),
+        );
+        expect(await repo.searchExercises('bench'), [bench]);
+      });
+
+      test('updateExercise kendi adının harf büyüklüğünü değiştirebilir', () async {
+        final bench = await exercise('bench press');
+
+        final updated = await repo.updateExercise(
+          bench.id,
+          name: 'Bench Press',
+          muscleGroup: MuscleGroup.chest,
+        );
+
+        expect(updated.name, 'Bench Press');
+        expect(await repo.searchExercises(''), [updated]);
+      });
+
+      test('updateExercise olmayan id için ArgumentError fırlatır', () async {
+        await expectLater(
+          repo.updateExercise(999, name: 'Squat', muscleGroup: MuscleGroup.legs),
+          throwsArgumentError,
+        );
+      });
+
+      test('updateExercise değişikliği geçmiş antrenmanın detayında görünür', () async {
+        final bench = await exercise('Bench Press');
+        final workout = await repo.createWorkout();
+        final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+        await repo.addSet(we.id, weightKg: 60, reps: 10);
+
+        await repo.updateExercise(bench.id, name: 'Dumbbell Press', muscleGroup: MuscleGroup.arms);
+
+        final detail = (await repo.getWorkoutDetail(workout.id))!;
+        expect(detail.exercises.single.exercise.name, 'Dumbbell Press');
+        expect(detail.exercises.single.exercise.muscleGroup, MuscleGroup.arms);
+        expect(detail.exercises.single.sets.single.weightKg, 60);
+      });
     });
 
     group('antrenmandaki hareketler', () {

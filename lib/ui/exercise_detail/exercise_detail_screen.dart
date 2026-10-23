@@ -11,6 +11,7 @@ import '../../domain/progress.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
+import '../core/widgets/exercise_edit_dialog.dart';
 import '../core/widgets/muscle_group_chip.dart';
 import 'exercise_detail_view_model.dart';
 
@@ -44,9 +45,25 @@ class _ExerciseDetailView extends StatelessWidget {
     _showPendingError(context, viewModel);
 
     return Scaffold(
-      appBar: AppBar(title: Text(viewModel.exercise.name)),
+      appBar: AppBar(
+        title: Text(viewModel.exercise.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: 'Hareketi düzenle',
+            onPressed: () => _edit(context, viewModel),
+          ),
+        ],
+      ),
       body: _buildBody(context, viewModel),
     );
+  }
+
+  /// Düzenleme diyaloğunu açar; onaylanırsa hareketi günceller.
+  Future<void> _edit(BuildContext context, ExerciseDetailViewModel viewModel) async {
+    final edit = await showExerciseEditDialog(context, viewModel.exercise);
+    if (edit == null) return;
+    await viewModel.updateExercise(edit.name, edit.muscleGroup);
   }
 
   Widget _buildBody(BuildContext context, ExerciseDetailViewModel viewModel) {

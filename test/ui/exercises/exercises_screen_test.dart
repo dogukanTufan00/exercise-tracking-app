@@ -125,4 +125,24 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Incline Dumbbell Bench Press'), findsOneWidget);
   });
+
+  testWidgets('detayda düzenleyip geri dönünce listede yeni ad görünür', (tester) async {
+    await seedCatalog();
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('Plank'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Hareketi düzenle'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'Plank Hold');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Kaydet'));
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Plank Hold'), findsOneWidget);
+    expect(find.text('Plank'), findsNothing);
+  });
 }

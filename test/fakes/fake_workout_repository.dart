@@ -105,6 +105,31 @@ class FakeWorkoutRepository implements WorkoutRepository {
     return exercise;
   }
 
+  @override
+  Future<Exercise> updateExercise(
+    int id, {
+    required String name,
+    required MuscleGroup muscleGroup,
+  }) async {
+    final cleaned = name.trim();
+    if (cleaned.isEmpty) {
+      throw ArgumentError.value(name, 'name', 'Hareket adı boş olamaz');
+    }
+    final current = _exercises[id];
+    if (current == null) {
+      throw ArgumentError.value(id, 'id', 'Hareket bulunamadı');
+    }
+
+    final key = normalizeForSearch(cleaned);
+    if (_exercises.values.any((e) => e.id != id && normalizeForSearch(e.name) == key)) {
+      throw DuplicateExerciseException(cleaned);
+    }
+
+    final updated = current.copyWith(name: cleaned, muscleGroup: muscleGroup);
+    _exercises[id] = updated;
+    return updated;
+  }
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   @override

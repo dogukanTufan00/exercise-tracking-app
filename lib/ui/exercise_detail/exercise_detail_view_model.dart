@@ -34,12 +34,14 @@ enum ProgressMetric {
 
 /// Hareket detay ekranının durumu: geçmiş, antrenman başına değerler, rekorlar ve seçili metrik.
 class ExerciseDetailViewModel extends ChangeNotifier {
-  ExerciseDetailViewModel(this._repository, {required this.exercise});
+  ExerciseDetailViewModel(this._repository, {required Exercise exercise}) {
+    _exercise = exercise;
+  }
 
   final WorkoutRepository _repository;
 
-  /// Detayı gösterilen hareket.
-  final Exercise exercise;
+  /// Detayı gösterilen hareket; düzenlenince güncellenir.
+  late Exercise _exercise;
 
   List<ExerciseSession> _sessionsNewestFirst = const [];
   List<SessionStats> _stats = const [];
@@ -48,6 +50,9 @@ class ExerciseDetailViewModel extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
   bool _disposed = false;
+
+  /// Detayı gösterilen hareket (güncel hali).
+  Exercise get exercise => _exercise;
 
   /// Hareketin yapıldığı antrenmanlar, en yeni üstte (liste için).
   List<ExerciseSession> get sessionsNewestFirst => _sessionsNewestFirst;
@@ -100,13 +105,40 @@ class ExerciseDetailViewModel extends ChangeNotifier {
     _notify();
   }
 
+  /// Hareketi günceller. Başarılıysa `true`. Hata mesajları:
+  /// aynı ad → 'Bu adda bir hareket zaten var.'; diğer → 'Hareket güncellenemedi.'
+  Future<bool> updateExercise(String name, MuscleGroup muscleGroup) async {
+    if (name.trim() == _exercise.name && muscleGroup == _exercise.muscleGroup) {
+      return true;
+    }
+
+    try {
+      _exercise = await _repository.updateExercise(
+        _exercise.id,
+        name: name,
+        muscleGroup: muscleGroup,
+      );
+    } on DuplicateExerciseException {
+      _errorMessage = 'Bu adda bir hareket zaten var.';
+      _notify();
+      return false;
+    } catch (_) {
+      _errorMessage = 'Hareket güncellenemedi.';
+      _notify();
+      return false;
+    }
+
+    _notify();
+    return true;
+  }
+
   /// Hareketin geçmişini repository'den okur ve değerleri hesaplar.
   Future<void> load() async {
     _isLoading = true;
     _notify();
 
     try {
-      final history = await _repository.getExerciseHistory(exercise.id);
+      final history = await _repository.getExerciseHistory(_exercise.id);
       if (_disposed) return;
       _sessionsNewestFirst = history.reversed.toList();
       _stats = [for (final session in history) SessionStats.fromSession(session)];

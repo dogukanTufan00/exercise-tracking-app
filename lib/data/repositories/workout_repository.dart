@@ -46,6 +46,14 @@ abstract interface class WorkoutRepository {
   /// Ad boşsa [ArgumentError] fırlatır.
   Future<Exercise> createExercise(String name, MuscleGroup muscleGroup);
 
+  /// Katalogdaki bir hareketin adını ve kas grubunu değiştirir; güncellenmiş hareketi döndürür.
+  ///
+  /// Ad kırpılarak saklanır; boşsa [ArgumentError]. Normalleştirilmiş adı (`normalizeForSearch`)
+  /// **başka** bir hareketinkiyle aynıysa [DuplicateExerciseException] (hareketin kendi adının
+  /// büyük/küçük harfini değiştirmek serbesttir: "bench press" → "Bench Press"). Hareket yoksa [ArgumentError].
+  /// Değişiklik hareketin tüm geçmişine yansır.
+  Future<Exercise> updateExercise(int id, {required String name, required MuscleGroup muscleGroup});
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   /// Katalogdaki bir hareketi antrenmanın sonuna ekler.

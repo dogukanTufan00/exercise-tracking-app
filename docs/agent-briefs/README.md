@@ -99,3 +99,4 @@ await tester.pumpAndSettle();
 | 4 | J2 | [JSON ve CSV biçimleri (#1)](wave4-j2-backup-codecs.md) |
 | 4 | K | [Ayarlar > Veriler bölümü (#1)](wave4-k-backup-settings-ui.md) |
 | 5 | L | [İlerleme ekranına giriş noktaları (#7)](wave5-l-progress-entry-points.md) |
+| 6 | M | [Hareket düzenleme (#10)](wave6-m-edit-exercise.md) |

@@ -23,6 +23,7 @@ class ExerciseCard extends StatefulWidget {
     required this.onToggleExpanded,
     required this.onRemove,
     required this.onShowProgress,
+    required this.onEditExercise,
     required this.onDraftWeightChanged,
     required this.onDraftRepsChanged,
     required this.onAddSet,
@@ -51,6 +52,9 @@ class ExerciseCard extends StatefulWidget {
 
   /// Menüden "İlerleme" seçilince çalışır; hareketin detay ekranını açar.
   final VoidCallback onShowProgress;
+
+  /// Menüden "Hareketi düzenle" seçilince çalışır; düzenleme diyaloğunu açar.
+  final VoidCallback onEditExercise;
   final ValueChanged<double> onDraftWeightChanged;
   final ValueChanged<int> onDraftRepsChanged;
   final VoidCallback onAddSet;
@@ -165,12 +169,17 @@ class _ExerciseCardState extends State<ExerciseCard> {
                   tooltip: 'Seçenekler',
                   onSelected: (value) {
                     if (value == 'progress') widget.onShowProgress();
+                    if (value == 'edit') widget.onEditExercise();
                     if (value == 'remove') _confirmRemove();
                   },
                   itemBuilder: (_) => const [
                     PopupMenuItem<String>(
                       value: 'progress',
                       child: Text('İlerleme'),
+                    ),
+                    PopupMenuItem<String>(
+                      value: 'edit',
+                      child: Text('Hareketi düzenle'),
                     ),
                     PopupMenuItem<String>(
                       value: 'remove',
