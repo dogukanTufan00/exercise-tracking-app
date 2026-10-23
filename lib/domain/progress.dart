@@ -121,3 +121,30 @@ class PersonalRecords {
     return best;
   }
 }
+
+/// [set], [previous] rekorlarını (bu antrenmandan **önceki** antrenmanlardan hesaplanmış) geçiyor mu?
+///
+/// - Önceki kayıt yoksa (`previous` boş) hiçbir set rekor değildir: ilk kez yapılan hareketin
+///   her seti "rekor" sayılmasın.
+/// - Ağırlıklı set: ağırlık `previous.heaviest`'ı **ya da** tahmini 1RM `previous.bestEstimatedOneRepMax`'i
+///   kesin olarak (>) geçerse rekordur.
+/// - Ağırlıksız set (0 kg), önceki geçmiş de ağırlıksızsa (`previous.heaviest == null`):
+///   tekrar `previous.mostReps`'i kesin olarak geçerse rekordur.
+bool isPersonalRecord(ExerciseSet set, PersonalRecords previous) {
+  final isEmpty = previous.heaviest == null &&
+      previous.bestEstimatedOneRepMax == null &&
+      previous.bestVolume == null &&
+      previous.mostReps == null;
+  if (isEmpty) return false;
+
+  if (set.weightKg > 0) {
+    final heaviest = previous.heaviest?.value ?? 0;
+    final best1rm = previous.bestEstimatedOneRepMax?.value ?? 0;
+    final e1rm = estimatedOneRepMax(set.weightKg, set.reps);
+    return set.weightKg > heaviest || e1rm > best1rm;
+  }
+
+  // Geçmişte ağırlıklı bir set varsa ağırlıksız set tekrar rekoru olamaz.
+  if (previous.heaviest != null) return false;
+  return set.reps > (previous.mostReps?.value ?? 0);
+}

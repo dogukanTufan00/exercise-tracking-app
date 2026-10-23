@@ -110,4 +110,56 @@ void main() {
       expect(records.mostReps!.workout.id, 2);
     });
   });
+
+  group('isPersonalRecord', () {
+    ExerciseSet makeSet(double kg, int reps) => ExerciseSet(
+          id: nextSetId++,
+          workoutExerciseId: 1,
+          setNumber: 1,
+          weightKg: kg,
+          reps: reps,
+        );
+
+    test('geçmiş yoksa hiçbir set rekor değildir', () {
+      expect(isPersonalRecord(makeSet(100, 5), PersonalRecords.empty), isFalse);
+      expect(isPersonalRecord(makeSet(0, 12), PersonalRecords.empty), isFalse);
+    });
+
+    test('daha ağır set rekordur', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(60, 10)])]);
+
+      expect(isPersonalRecord(makeSet(62.5, 5), previous), isTrue);
+    });
+
+    test('aynı ağırlık ama daha yüksek 1RM rekordur', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(60, 5)])]);
+
+      expect(isPersonalRecord(makeSet(60, 8), previous), isTrue);
+    });
+
+    test('eşit set rekor değildir', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(60, 5)])]);
+
+      expect(isPersonalRecord(makeSet(60, 5), previous), isFalse);
+    });
+
+    test('daha hafif ve düşük 1RM rekor değildir', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(60, 10)])]);
+
+      expect(isPersonalRecord(makeSet(50, 10), previous), isFalse);
+    });
+
+    test('ağırlıksız geçmişte daha çok tekrar rekordur, eşit tekrar değildir', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(0, 10)])]);
+
+      expect(isPersonalRecord(makeSet(0, 12), previous), isTrue);
+      expect(isPersonalRecord(makeSet(0, 10), previous), isFalse);
+    });
+
+    test('ağırlıklı geçmişi olan harekette 0 kg set rekor değildir', () {
+      final previous = PersonalRecords.fromHistory([session(1, [(60, 10)])]);
+
+      expect(isPersonalRecord(makeSet(0, 20), previous), isFalse);
+    });
+  });
 }

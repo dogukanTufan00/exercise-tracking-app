@@ -315,4 +315,67 @@ void main() {
       expect(repsRect.top, greaterThan(weightRect.bottom));
     });
   });
+
+  group('rekor vurgusu', () {
+    /// Önceki antrenmanda bench 60 × 10; bu antrenmanda verilen setleri ekler.
+    Future<Workout> createWorkoutWithBenchSets(List<(double, int)> sets) async {
+      final previous = await repo.createWorkout(
+        startedAt: DateTime(2026, 10, 1, 18),
+      );
+      final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+      final prevWe = await repo.addExerciseToWorkout(previous.id, bench.id);
+      await repo.addSet(prevWe.id, weightKg: 60, reps: 10);
+
+      final workout = await repo.createWorkout(
+        title: 'Upper',
+        startedAt: DateTime(2026, 10, 17, 18),
+      );
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      for (final (kg, reps) in sets) {
+        await repo.addSet(we.id, weightKg: kg, reps: reps);
+      }
+      return workout;
+    }
+
+    testWidgets('rekor set eklenince "Yeni rekor" bildirimi çıkar', (tester) async {
+      final workout = await createWorkoutWithBenchSets([(62.5, 8)]);
+
+      await pumpWorkout(tester, workout.id);
+      expect(find.text('Yeni rekor: 62,5 kg × 8'), findsNothing);
+
+      // Seti tekrarla: 62,5 kg × 8 yeni bir rekor olarak eklenir.
+      await tester.tap(find.text('Seti tekrarla'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Yeni rekor: 62,5 kg × 8'), findsOneWidget);
+      expect(find.text('62,5 kg × 8'), findsNWidgets(2));
+    });
+
+    testWidgets('rekor setinde rozet, rekor olmayanda rozet yok', (tester) async {
+      final workout = await createWorkoutWithBenchSets([(62.5, 8), (50, 10)]);
+
+      final semantics = tester.ensureSemantics();
+      await pumpWorkout(tester, workout.id);
+
+      expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+      expect(find.bySemanticsLabel('Kişisel rekor'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('telefon boyutunda (360x780, yazı 1.3) rozetli satır taşmaz',
+        (tester) async {
+      final workout = await createWorkoutWithBenchSets([(102.5, 10)]);
+
+      await pumpWorkout(
+        tester,
+        workout.id,
+        size: const Size(360, 780),
+        textScale: 1.3,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.emoji_events), findsOneWidget);
+      expect(find.text('Set ekle'), findsOneWidget);
+    });
+  });
 }

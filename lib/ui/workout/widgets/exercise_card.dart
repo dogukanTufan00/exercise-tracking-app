@@ -18,6 +18,7 @@ class ExerciseCard extends StatefulWidget {
     super.key,
     required this.entry,
     required this.previousSets,
+    required this.isRecordSet,
     required this.draft,
     required this.expanded,
     required this.onToggleExpanded,
@@ -38,6 +39,9 @@ class ExerciseCard extends StatefulWidget {
 
   /// Hareketin bir önceki antrenmandaki setleri.
   final List<ExerciseSet> previousSets;
+
+  /// Set, hareketin önceki antrenmanlardaki rekorlarını geçiyor mu; rekor setin yanında rozet çıkar.
+  final bool Function(ExerciseSet set) isRecordSet;
 
   /// Sıradaki set için taslak değerler.
   final SetDraft draft;
@@ -265,6 +269,7 @@ class _ExerciseCardState extends State<ExerciseCard> {
           _SetRow(
             key: ValueKey('set-${set.id}'),
             set: set,
+            isRecord: widget.isRecordSet(set),
             onTap: () => _openEditSheet(set),
             onDelete: () => widget.onDeleteSet(set.id),
           ),
@@ -341,11 +346,15 @@ class _SetRow extends StatelessWidget {
   const _SetRow({
     super.key,
     required this.set,
+    required this.isRecord,
     required this.onTap,
     required this.onDelete,
   });
 
   final ExerciseSet set;
+
+  /// Set hareketin önceki bir rekorunu geçtiyse true; satırda 🏆 rozeti görünür.
+  final bool isRecord;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -378,6 +387,12 @@ class _SetRow extends StatelessWidget {
                 style: textTheme.titleLarge,
               ),
             ),
+            if (isRecord)
+              Semantics(
+                label: 'Kişisel rekor',
+                container: true,
+                child: Icon(Icons.emoji_events, color: colorScheme.primary),
+              ),
             IconButton(
               icon: const Icon(Icons.close),
               tooltip: 'Seti sil',

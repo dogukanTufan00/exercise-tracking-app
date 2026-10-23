@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
@@ -51,6 +52,34 @@ class _WorkoutView extends StatelessWidget {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(SnackBar(content: Text(message)));
+      });
+    }
+
+    final record = vm.pendingRecordMessage;
+    if (record != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        // Aynı frame'de birden çok çağrı olabilir; her seferinde güncel değere bakılır.
+        final message = vm.pendingRecordMessage;
+        if (message == null) return;
+        vm.clearPendingRecord();
+        HapticFeedback.mediumImpact();
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    Icons.emoji_events,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(child: Text(message)),
+                ],
+              ),
+            ),
+          );
       });
     }
 
@@ -116,6 +145,7 @@ class _WorkoutView extends StatelessWidget {
               key: ValueKey('exercise-${entry.workoutExercise.id}'),
               entry: entry,
               previousSets: vm.previousSetsFor(entry.exercise.id),
+              isRecordSet: (set) => vm.isRecordSet(entry.exercise.id, set),
               draft: vm.draftFor(entry.workoutExercise.id),
               expanded: vm.isExpanded(entry.workoutExercise.id),
               onToggleExpanded: () =>

@@ -397,4 +397,130 @@ void main() {
       vm.dispose();
     });
   });
+
+  group('rekorlar', () {
+    /// Taslağı verilen değerlere ayarlayıp seti ekler.
+    Future<void> addSetWith(WorkoutViewModel vm, int we, double kg, int reps) async {
+      vm.setDraftWeight(we, kg);
+      vm.setDraftReps(we, reps);
+      await vm.addSet(we);
+    }
+
+    test('önceki antrenmanda 60 × 10 varken 62,5 × 8 eklemek rekor bildirir', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+
+      await addSetWith(vm, we.id, 62.5, 8);
+
+      expect(vm.pendingRecordMessage, 'Yeni rekor: 62,5 kg × 8');
+      final added = vm.detail!.exercises.single.sets.last;
+      expect(vm.isRecordSet(bench.id, added), isTrue);
+      vm.dispose();
+    });
+
+    test('50 × 10 eklemek bildirim üretmez ve rekor değildir', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+
+      await addSetWith(vm, we.id, 50, 10);
+
+      expect(vm.pendingRecordMessage, isNull);
+      expect(vm.isRecordSet(bench.id, vm.detail!.exercises.single.sets.last), isFalse);
+      vm.dispose();
+    });
+
+    test('ilk kez yapılan hareketin hiçbir seti rekor değildir', () async {
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, squat.id);
+      final vm = await loadedVm(workout.id);
+
+      await addSetWith(vm, we.id, 120, 5);
+
+      expect(vm.pendingRecordMessage, isNull);
+      expect(vm.isRecordSet(squat.id, vm.detail!.exercises.single.sets.last), isFalse);
+      vm.dispose();
+    });
+
+    test('aynı antrenmandaki iki rekor set ikisi de rekordur', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+
+      await addSetWith(vm, we.id, 62.5, 8);
+      await addSetWith(vm, we.id, 65, 6);
+
+      final sets = vm.detail!.exercises.single.sets;
+      expect(vm.isRecordSet(bench.id, sets[0]), isTrue);
+      expect(vm.isRecordSet(bench.id, sets[1]), isTrue);
+      vm.dispose();
+    });
+
+    test('sonraki tarihli daha ağır antrenman bu seti rekor olmaktan çıkarmaz', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 10, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 62.5, reps: 8);
+      final later = await repo.createWorkout(startedAt: DateTime(2026, 10, 20, 18));
+      final laterWe = await repo.addExerciseToWorkout(later.id, bench.id);
+      await repo.addSet(laterWe.id, weightKg: 100, reps: 5);
+
+      final vm = await loadedVm(workout.id);
+
+      expect(vm.isRecordSet(bench.id, vm.detail!.exercises.single.sets.single), isTrue);
+      vm.dispose();
+    });
+
+    test('repeatLastSet rekor setini kopyalarsa bildirir', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 62.5, reps: 8);
+      final vm = await loadedVm(workout.id);
+      expect(vm.pendingRecordMessage, isNull);
+
+      await vm.repeatLastSet(we.id);
+
+      expect(vm.pendingRecordMessage, 'Yeni rekor: 62,5 kg × 8');
+      vm.dispose();
+    });
+
+    test('updateSet ile rekor değerine çıkarmak bildirir; load bildirmez', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 50, reps: 10);
+      final vm = await loadedVm(workout.id);
+      expect(vm.pendingRecordMessage, isNull);
+
+      final set = vm.detail!.exercises.single.sets.single;
+      await vm.updateSet(set.copyWith(weightKg: 62.5, reps: 8));
+      expect(vm.pendingRecordMessage, 'Yeni rekor: 62,5 kg × 8');
+
+      vm.clearPendingRecord();
+      expect(vm.pendingRecordMessage, isNull);
+
+      await vm.load();
+      expect(vm.pendingRecordMessage, isNull);
+      vm.dispose();
+    });
+
+    test('düzenlenen set rekor değilse bildirim üretmez', () async {
+      await createPreviousWithBench([(60, 10)]);
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 10, 17, 18));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 50, reps: 10);
+      final vm = await loadedVm(workout.id);
+
+      final set = vm.detail!.exercises.single.sets.single;
+      await vm.updateSet(set.copyWith(weightKg: 40));
+
+      expect(vm.pendingRecordMessage, isNull);
+      vm.dispose();
+    });
+  });
 }

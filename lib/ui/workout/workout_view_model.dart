@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../domain/progress.dart';
 import '../core/formatters.dart';
 
 /// Bir hareket için bir sonraki setin ağırlık ve tekrar taslağı.
@@ -37,6 +38,12 @@ class WorkoutViewModel extends ChangeNotifier {
 
   /// Hareket kataloğu id'sine göre "geçen sefer" setleri.
   final Map<int, List<ExerciseSet>> _previousSets = {};
+
+  /// Hareket kataloğu id'sine göre, bu antrenmandan önce başlamış antrenmanlardaki rekorlar.
+  final Map<int, PersonalRecords> _previousRecords = {};
+
+  /// Ekranın bir kez göstermesi gereken rekor bildirimi.
+  String? _pendingRecordMessage;
 
   /// Antrenmandaki hareket (workoutExercise) id'sine göre taslaklar.
   final Map<int, SetDraft> _drafts = {};
@@ -91,6 +98,21 @@ class WorkoutViewModel extends ChangeNotifier {
     return _previousSets[exerciseId] ?? const <ExerciseSet>[];
   }
 
+  /// Set, hareketin bu antrenmandan önceki antrenmanlardaki rekorlarını geçiyor mu?
+  bool isRecordSet(int exerciseId, ExerciseSet set) {
+    final previous = _previousRecords[exerciseId];
+    return previous != null && isPersonalRecord(set, previous);
+  }
+
+  /// Ekranın bir kez göstermesi gereken rekor bildirimi (ör. "Yeni rekor: 62,5 kg × 8"); yoksa null.
+  String? get pendingRecordMessage => _pendingRecordMessage;
+
+  void clearPendingRecord() {
+    if (_pendingRecordMessage == null) return;
+    _pendingRecordMessage = null;
+    _notify();
+  }
+
   /// Bir sonraki setin taslağı. Taslak henüz oluşmadıysa mevcut duruma göre hesaplanır.
   SetDraft draftFor(int workoutExerciseId) {
     final existing = _drafts[workoutExerciseId];
@@ -136,6 +158,11 @@ class WorkoutViewModel extends ChangeNotifier {
         exercise.id,
         beforeWorkoutId: _workoutId,
       );
+      final startedAt = _detail?.workout.startedAt;
+      if (startedAt != null) {
+        _previousRecords[exercise.id] =
+            await _loadPreviousRecords(exercise.id, startedAt);
+      }
       await _reload();
     });
   }
@@ -208,6 +235,7 @@ class WorkoutViewModel extends ChangeNotifier {
         reps: draft.reps,
       );
       await _reload();
+      _announceLastSetRecord(workoutExerciseId);
     });
   }
 
@@ -224,6 +252,7 @@ class WorkoutViewModel extends ChangeNotifier {
         reps: last.reps,
       );
       await _reload();
+      _announceLastSetRecord(workoutExerciseId);
     });
   }
 
@@ -231,6 +260,7 @@ class WorkoutViewModel extends ChangeNotifier {
     await _run('Set güncellenemedi.', () async {
       await _repository.updateSet(set);
       await _reload();
+      _announceSavedSet(set.id);
     });
   }
 
@@ -280,7 +310,7 @@ class WorkoutViewModel extends ChangeNotifier {
     }
   }
 
-  /// Detayı ve tüm hareketlerin "geçen sefer" setlerini yükler, taslakları oluşturur.
+  /// Detayı ve tüm hareketlerin "geçen sefer" setlerini ve rekorlarını yükler, taslakları oluşturur.
   Future<void> _reloadAll() async {
     final fresh = await _repository.getWorkoutDetail(_workoutId);
     if (_disposed) return;
@@ -293,9 +323,52 @@ class WorkoutViewModel extends ChangeNotifier {
           exerciseId,
           beforeWorkoutId: _workoutId,
         );
+        _previousRecords[exerciseId] =
+            await _loadPreviousRecords(exerciseId, fresh.workout.startedAt);
       }
     }
     _ensureDrafts();
+  }
+
+  /// Hareketin, [startedAt]'tan **kesin önce** başlamış antrenmanlardaki rekorları.
+  /// Bu antrenmanın kendi setleri hesaba katılmaz.
+  Future<PersonalRecords> _loadPreviousRecords(
+    int exerciseId,
+    DateTime startedAt,
+  ) async {
+    final history = await _repository.getExerciseHistory(exerciseId);
+    return PersonalRecords.fromHistory([
+      for (final session in history)
+        if (session.workout.startedAt.isBefore(startedAt)) session,
+    ]);
+  }
+
+  /// Eklenen setin (hareketin son seti) rekor olup olmadığına bakar.
+  void _announceLastSetRecord(int workoutExerciseId) {
+    final entry = _entryFor(workoutExerciseId);
+    if (entry == null || entry.sets.isEmpty) return;
+    _announceIfRecord(entry.exercise.id, entry.sets.last);
+  }
+
+  /// Kaydedilen seti (id ile bulunur) rekor olup olmadığına bakar.
+  void _announceSavedSet(int setId) {
+    final current = _detail;
+    if (current == null) return;
+    for (final entry in current.exercises) {
+      for (final saved in entry.sets) {
+        if (saved.id == setId) {
+          _announceIfRecord(entry.exercise.id, saved);
+          return;
+        }
+      }
+    }
+  }
+
+  /// Set rekorsa bildirim ayarlar. Bildirim yalnızca bu çağrıda üretilir.
+  void _announceIfRecord(int exerciseId, ExerciseSet set) {
+    if (!isRecordSet(exerciseId, set)) return;
+    _pendingRecordMessage = 'Yeni rekor: ${formatSet(set.weightKg, set.reps)}';
+    _notify();
   }
 
   /// Detayı yeniler (geçen sefer listelerini değiştirmez).
