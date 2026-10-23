@@ -34,6 +34,7 @@ class WorkoutViewModel extends ChangeNotifier {
   WorkoutDetail? _detail;
   bool _isLoading = false;
   String? _errorMessage;
+  String? _infoMessage;
   bool _disposed = false;
 
   /// Hareket kataloğu id'sine göre "geçen sefer" setleri.
@@ -71,6 +72,15 @@ class WorkoutViewModel extends ChangeNotifier {
   void clearError() {
     if (_errorMessage == null) return;
     _errorMessage = null;
+    _notify();
+  }
+
+  /// Kullanıcıya bir kez gösterilecek Türkçe bilgi metni (ör. "Hareket değiştirildi"); yoksa null.
+  String? get infoMessage => _infoMessage;
+
+  void clearInfoMessage() {
+    if (_infoMessage == null) return;
+    _infoMessage = null;
     _notify();
   }
 
@@ -174,6 +184,22 @@ class WorkoutViewModel extends ChangeNotifier {
     await _run('Hareket kaldırılamadı.', () async {
       await _repository.removeExerciseFromWorkout(workoutExerciseId);
       await _reload();
+    });
+  }
+
+  /// Antrenmandaki hareketi (workoutExercise) başka bir katalog hareketiyle değiştirir.
+  /// Setler ve not korunur; geçen sefer ve rekorlar yeni hareket için hesaplanır.
+  /// Aynı hareket seçilirse hiçbir şey yapılmaz.
+  Future<void> changeExercise(int workoutExerciseId, int exerciseId) async {
+    final current = _entryFor(workoutExerciseId);
+    if (current == null || current.exercise.id == exerciseId) return;
+
+    await _run('Hareket değiştirilemedi.', () async {
+      await _repository.changeWorkoutExercise(workoutExerciseId, exerciseId);
+      // Açık/kapalı durum ve taslak workoutExercise id'sine bağlı olduğu için korunur.
+      await _reloadAll();
+      _infoMessage = 'Hareket değiştirildi';
+      _notify();
     });
   }
 

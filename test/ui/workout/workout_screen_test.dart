@@ -247,6 +247,28 @@ void main() {
     expect(find.text('Bench Press'), findsNothing);
   });
 
+  testWidgets('⋮ → Hareketi değiştir → picker → kart başlığında yeni ad, setler duruyor',
+      (tester) async {
+    final workout = await repo.createWorkout(title: 'Upper');
+    final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+    await repo.createExercise('Squat', MuscleGroup.legs);
+    final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+    await repo.addSet(we.id, weightKg: 60, reps: 10);
+
+    await pumpWorkout(tester, workout.id);
+    await tester.tap(find.byTooltip('Seçenekler'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Hareketi değiştir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Squat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Squat'), findsOneWidget);
+    expect(find.text('Bench Press'), findsNothing);
+    expect(find.text('60 kg × 10'), findsOneWidget);
+    expect(find.text('Hareket değiştirildi'), findsOneWidget);
+  });
+
   group('ağırlık/tekrar adımlayıcıları', () {
     final weightStepper = find.byKey(const ValueKey('weight-stepper'));
     final repsStepper = find.byKey(const ValueKey('reps-stepper'));

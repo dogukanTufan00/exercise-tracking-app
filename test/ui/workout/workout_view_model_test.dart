@@ -399,6 +399,75 @@ void main() {
     });
   });
 
+  group('hareket değiştirme', () {
+    test('changeExercise sonrası kayıt yeni hareketi gösterir, setler aynı kalır', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 60, reps: 10);
+      await repo.addSet(we.id, weightKg: 62.5, reps: 8);
+      final vm = await loadedVm(workout.id);
+
+      await vm.changeExercise(we.id, squat.id);
+
+      final entry = vm.detail!.exercises.single;
+      expect(entry.workoutExercise.id, we.id);
+      expect(entry.exercise.id, squat.id);
+      expect(entry.sets.map((s) => (s.weightKg, s.reps)).toList(), [
+        (60.0, 10),
+        (62.5, 8),
+      ]);
+      expect(vm.errorMessage, isNull);
+      expect(vm.infoMessage, 'Hareket değiştirildi');
+      vm.dispose();
+    });
+
+    test('geçen sefer yeni hareketinki olur', () async {
+      final previous = await repo.createWorkout(
+        startedAt: DateTime(2026, 10, 1, 18),
+      );
+      final prevSquat = await repo.addExerciseToWorkout(previous.id, squat.id);
+      await repo.addSet(prevSquat.id, weightKg: 100, reps: 5);
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+
+      await vm.changeExercise(we.id, squat.id);
+
+      final previousSquat = vm.previousSetsFor(squat.id);
+      expect(previousSquat.length, 1);
+      expect(previousSquat.single.weightKg, 100);
+      vm.dispose();
+    });
+
+    test('aynı hareket seçilirse hiçbir şey değişmez', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      await repo.addSet(we.id, weightKg: 60, reps: 10);
+      final vm = await loadedVm(workout.id);
+
+      await vm.changeExercise(we.id, bench.id);
+
+      expect(vm.infoMessage, isNull);
+      expect(vm.errorMessage, isNull);
+      expect(vm.detail!.exercises.single.exercise.id, bench.id);
+      expect(vm.detail!.exercises.single.sets.length, 1);
+      vm.dispose();
+    });
+
+    test('hata olursa errorMessage ayarlanır ve detay değişmez', () async {
+      final workout = await repo.createWorkout();
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = await loadedVm(workout.id);
+
+      await vm.changeExercise(we.id, 999);
+
+      expect(vm.errorMessage, 'Hareket değiştirilemedi.');
+      expect(vm.infoMessage, isNull);
+      expect(vm.detail!.exercises.single.exercise.id, bench.id);
+      vm.dispose();
+    });
+  });
+
   group('rekorlar', () {
     /// Taslağı verilen değerlere ayarlayıp seti ekler.
     Future<void> addSetWith(WorkoutViewModel vm, int we, double kg, int reps) async {

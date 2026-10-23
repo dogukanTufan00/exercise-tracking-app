@@ -55,6 +55,20 @@ class _WorkoutView extends StatelessWidget {
       });
     }
 
+    final info = vm.infoMessage;
+    if (info != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        // Aynı frame'de birden çok çağrı olabilir; her seferinde güncel değere bakılır.
+        final message = vm.infoMessage;
+        if (message == null) return;
+        vm.clearInfoMessage();
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text(message)));
+      });
+    }
+
     final record = vm.pendingRecordMessage;
     if (record != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -153,6 +167,7 @@ class _WorkoutView extends StatelessWidget {
               onRemove: () => vm.removeExercise(entry.workoutExercise.id),
               onShowProgress: () => _showProgress(context, vm, entry.exercise),
               onEditExercise: () => _editExercise(context, vm, entry.exercise),
+              onChangeExercise: () => _changeExercise(context, vm, entry),
               onDraftWeightChanged: (kg) =>
                   vm.setDraftWeight(entry.workoutExercise.id, kg),
               onDraftRepsChanged: (reps) =>
@@ -183,6 +198,20 @@ class _WorkoutView extends StatelessWidget {
     );
     if (exercise != null) {
       await vm.addExercise(exercise);
+    }
+  }
+
+  /// Hareket seçiciyi açar; farklı bir hareket seçilirse bu antrenmandaki hareketi değiştirir.
+  Future<void> _changeExercise(
+    BuildContext context,
+    WorkoutViewModel vm,
+    WorkoutExerciseDetail entry,
+  ) async {
+    final exercise = await Navigator.of(context).push<Exercise>(
+      MaterialPageRoute(builder: (_) => const ExercisePickerScreen()),
+    );
+    if (exercise != null && exercise.id != entry.exercise.id) {
+      await vm.changeExercise(entry.workoutExercise.id, exercise.id);
     }
   }
 
