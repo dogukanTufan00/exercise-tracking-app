@@ -1,5 +1,7 @@
 import 'package:intl/intl.dart';
 
+import '../../data/models/models.dart';
+
 /// Ağırlığı Türkçe biçimde yazar: 60.0 → "60", 62.5 → "62,5", 62.25 → "62,25".
 ///
 /// En çok 2 ondalık basamak gösterilir; gereksiz sıfırlar atılır.
@@ -63,4 +65,28 @@ double? parseDecimal(String input) {
   final value = double.tryParse(normalized);
   if (value == null || !value.isFinite) return null;
   return value;
+}
+
+/// Haftanın günleri, Pazartesi (1) … Pazar (7). [formatWeekday] ve kısa hali [formatWeekdayShort] için.
+const List<String> _weekdayNames = [
+  'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar',
+];
+
+/// Program günü etiketi: 1 → "Pazartesi" … 7 → "Pazar"; `null` → "Esnek gün" (belirli bir güne bağlı değil).
+String formatWeekday(int? weekday) {
+  if (weekday == null) return 'Esnek gün';
+  return _weekdayNames[weekday - 1];
+}
+
+/// Kısa gün adı (seçim düğmeleri için): 1 → "Pzt" … 7 → "Paz".
+String formatWeekdayShort(int weekday) {
+  const short = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
+  return short[weekday - 1];
+}
+
+/// Hedef metni: "3 × 10 · 40 kg"; ağırlık hedefi yoksa "3 × 10".
+String formatTarget(ExerciseTarget target) {
+  final base = '${target.sets} × ${target.reps}';
+  final kg = target.weightKg;
+  return kg == null ? base : '$base · ${formatWeight(kg)} kg';
 }

@@ -108,3 +108,7 @@ await tester.pumpAndSettle();
 | 9 | S | [Yedekte ölçümler, biçim 2 (#14)](wave9-s-backup-v2.md) |
 | 10 | U | [Programların veri katmanı ve şema 3 geçişi (#16)](wave10-u-program-data.md) |
 | 10 | V | [Sekmeye dönünce listeleri yenile (#17)](wave10-v-tab-refresh.md) |
+| 11 | W1 | [Program sekmesi (#16)](wave11-w1-program-tab.md) |
+| 11 | W2 | [Program günü düzenleme (#16)](wave11-w2-day-editor.md) |
+| 11 | X | [Antrenmanı programdan başlatma (#16)](wave11-x-start-from-program.md) |
+| 11 | Y | [Yedekte programlar, biçim 3 (#16)](wave11-y-backup-v3.md) |
