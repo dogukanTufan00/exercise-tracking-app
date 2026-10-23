@@ -13,7 +13,11 @@ import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
 import '../core/widgets/exercise_edit_dialog.dart';
 import '../core/widgets/muscle_group_chip.dart';
+import '../exercise_picker/exercise_picker_screen.dart';
 import 'exercise_detail_view_model.dart';
+
+/// AppBar ⋮ menüsündeki seçenekler.
+enum _DetailAction { merge }
 
 /// Hareket detay ekranı: kişisel rekorlar, ilerleme grafiği ve antrenman antrenman setler.
 class ExerciseDetailScreen extends StatelessWidget {
@@ -53,6 +57,22 @@ class _ExerciseDetailView extends StatelessWidget {
             tooltip: 'Hareketi düzenle',
             onPressed: () => _edit(context, viewModel),
           ),
+          PopupMenuButton<_DetailAction>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Hareket seçenekleri',
+            onSelected: (action) {
+              switch (action) {
+                case _DetailAction.merge:
+                  _pickMergeTarget(context, viewModel);
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _DetailAction.merge,
+                child: Text('Başka bir hareketle birleştir'),
+              ),
+            ],
+          ),
         ],
       ),
       body: _buildBody(context, viewModel),
@@ -64,6 +84,81 @@ class _ExerciseDetailView extends StatelessWidget {
     final edit = await showExerciseEditDialog(context, viewModel.exercise);
     if (edit == null) return;
     await viewModel.updateExercise(edit.name, edit.muscleGroup);
+  }
+
+  /// Hedef hareketi seçtirir; aynı hareket seçilirse bilgi verir, değilse onay ister.
+  Future<void> _pickMergeTarget(
+    BuildContext context,
+    ExerciseDetailViewModel viewModel,
+  ) async {
+    final target = await Navigator.of(context).push<Exercise>(
+      MaterialPageRoute<Exercise>(
+        builder: (_) => const ExercisePickerScreen(),
+      ),
+    );
+    if (target == null || !context.mounted) return;
+
+    if (target.id == viewModel.exercise.id) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aynı hareket seçildi.')),
+      );
+      return;
+    }
+
+    final confirmed = await _confirmMerge(
+      context,
+      source: viewModel.exercise,
+      target: target,
+    );
+    if (!confirmed || !context.mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final merged = await viewModel.mergeInto(target);
+    if (!merged || !context.mounted) return;
+
+    // Kaynak hareket artık yok; ekran hedef hareketin detayıyla değiştirilir.
+    navigator.pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => ExerciseDetailScreen(exercise: target),
+      ),
+    );
+    messenger.showSnackBar(
+      const SnackBar(content: Text('Hareketler birleştirildi')),
+    );
+  }
+
+  /// Birleştirme onay diyaloğu. Onaylanırsa `true` döner.
+  Future<bool> _confirmMerge(
+    BuildContext context, {
+    required Exercise source,
+    required Exercise target,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Hareketler birleştirilsin mi?'),
+        content: Text(
+          '"${source.name}" hareketinin tüm antrenmanları ve program kayıtları '
+          '"${target.name}" altına taşınacak ve "${source.name}" silinecek. '
+          'Bu işlem geri alınamaz.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: const Text('Birleştir'),
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   Widget _buildBody(BuildContext context, ExerciseDetailViewModel viewModel) {

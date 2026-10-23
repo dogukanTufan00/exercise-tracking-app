@@ -4,6 +4,7 @@ import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
 import 'package:exercise_tracking_app/ui/core/widgets/empty_state.dart';
 import 'package:exercise_tracking_app/ui/core/widgets/muscle_group_chip.dart';
 import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_screen.dart';
+import 'package:exercise_tracking_app/ui/exercise_picker/exercise_picker_screen.dart';
 import 'package:exercise_tracking_app/ui/exercises/exercises_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,5 +145,33 @@ void main() {
 
     expect(find.text('Plank Hold'), findsOneWidget);
     expect(find.text('Plank'), findsNothing);
+  });
+
+  testWidgets('birleştirilen kaynak hareket listeden kalkar', (tester) async {
+    await repository.createExercise('Pecdec', MuscleGroup.chest);
+    await repository.createExercise('Pec deck', MuscleGroup.chest);
+    await pumpScreen(tester);
+
+    await tester.tap(find.text('Pecdec'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Hareket seçenekleri'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Başka bir hareketle birleştir'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(ExercisePickerScreen),
+        matching: find.text('Pec deck'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Birleştir'));
+    await tester.pumpAndSettle();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pecdec'), findsNothing);
+    expect(find.text('Pec deck'), findsOneWidget);
   });
 }

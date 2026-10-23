@@ -132,6 +132,22 @@ class ExerciseDetailViewModel extends ChangeNotifier {
     return true;
   }
 
+  /// Bu hareketin tüm kayıtlarını [target] hareketine taşır ve bu hareketi siler.
+  /// Başarılıysa `true`; hata olursa 'Hareketler birleştirilemedi.' mesajı yazılır.
+  Future<bool> mergeInto(Exercise target) async {
+    try {
+      await _repository.mergeExercises(
+        sourceId: _exercise.id,
+        targetId: target.id,
+      );
+    } catch (_) {
+      _errorMessage = 'Hareketler birleştirilemedi.';
+      _notify();
+      return false;
+    }
+    return true;
+  }
+
   /// Hareketin geçmişini repository'den okur ve değerleri hesaplar.
   Future<void> load() async {
     _isLoading = true;

@@ -4,6 +4,7 @@ import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
 import 'package:exercise_tracking_app/ui/core/widgets/muscle_group_chip.dart';
 import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_screen.dart';
 import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_view_model.dart';
+import 'package:exercise_tracking_app/ui/exercise_picker/exercise_picker_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -180,5 +181,79 @@ void main() {
     );
     expect(find.widgetWithText(MuscleGroupChip, 'Kol'), findsOneWidget);
     expect(find.widgetWithText(MuscleGroupChip, 'Bacak'), findsNothing);
+  });
+
+  /// ⋮ menüsünden "Başka bir hareketle birleştir" seçeneğini açar.
+  Future<void> openMergePicker(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Hareket seçenekleri'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Başka bir hareketle birleştir'));
+    await tester.pumpAndSettle();
+  }
+
+  /// Seçici ekranındaki bir hareket satırı (AppBar'daki aynı ad ile karışmasın diye).
+  Finder pickerRow(String name) => find.descendant(
+        of: find.byType(ExercisePickerScreen),
+        matching: find.text(name),
+      );
+
+  testWidgets('birleştir: hedef detayı açılır, kaynağın antrenmanları orada görünür',
+      (tester) async {
+    final source = await repo.createExercise('Pecdec', MuscleGroup.chest);
+    final target = await repo.createExercise('Pec deck', MuscleGroup.chest);
+    await workoutWith(source, DateTime(2026, 10, 1), [(60, 10)]);
+    await workoutWith(target, DateTime(2026, 10, 8), [(70, 5)]);
+
+    await pumpDetail(tester, source);
+    await openMergePicker(tester);
+    await tester.tap(pickerRow('Pec deck'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Hareketler birleştirilsin mi?'), findsOneWidget);
+    expect(find.textContaining('geri alınamaz'), findsOneWidget);
+    await tester.tap(find.text('Birleştir'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Pec deck')),
+      findsOneWidget,
+    );
+    expect(find.text('60 kg × 10'), findsOneWidget);
+    expect(find.text('70 kg × 5'), findsOneWidget);
+    expect(find.text('Hareketler birleştirildi'), findsOneWidget);
+    expect(await repo.searchExercises('Pecdec'), isEmpty);
+  });
+
+  testWidgets('birleştir onayında Vazgeç hiçbir şeyi değiştirmez', (tester) async {
+    final source = await repo.createExercise('Pecdec', MuscleGroup.chest);
+    await repo.createExercise('Pec deck', MuscleGroup.chest);
+
+    await pumpDetail(tester, source);
+    await openMergePicker(tester);
+    await tester.tap(pickerRow('Pec deck'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Vazgeç'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Pecdec')),
+      findsOneWidget,
+    );
+    expect(find.text('Hareketler birleştirildi'), findsNothing);
+    expect(await repo.searchExercises('Pecdec'), hasLength(1));
+    expect(await repo.searchExercises('Pec deck'), hasLength(1));
+  });
+
+  testWidgets('aynı hareket seçilirse bilgi mesajı gösterilir, onay açılmaz', (tester) async {
+    final source = await repo.createExercise('Pecdec', MuscleGroup.chest);
+
+    await pumpDetail(tester, source);
+    await openMergePicker(tester);
+    await tester.tap(pickerRow('Pecdec'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Aynı hareket seçildi.'), findsOneWidget);
+    expect(find.text('Hareketler birleştirilsin mi?'), findsNothing);
+    expect(await repo.searchExercises('Pecdec'), hasLength(1));
   });
 }

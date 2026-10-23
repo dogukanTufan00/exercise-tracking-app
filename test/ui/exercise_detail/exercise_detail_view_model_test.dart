@@ -178,6 +178,53 @@ void main() {
       expect(viewModel.exercise, bench);
     });
   });
+
+  group('mergeInto', () {
+    test('repository\'yi kaynak ve hedef id\'leriyle çağırır ve true döner', () async {
+      final recording = _MergeRecordingRepository();
+      final source = await recording.createExercise('Pecdec', MuscleGroup.chest);
+      final target = await recording.createExercise('Pec deck', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(recording, exercise: source);
+      addTearDown(viewModel.dispose);
+
+      final ok = await viewModel.mergeInto(target);
+
+      expect(ok, isTrue);
+      expect(recording.mergeCalls, [(sourceId: source.id, targetId: target.id)]);
+      expect(viewModel.errorMessage, isNull);
+    });
+
+    test('repository hata verirse false döner ve Türkçe mesaj gösterir', () async {
+      final failing = _FailingMergeRepository();
+      final source = await failing.createExercise('Pecdec', MuscleGroup.chest);
+      final target = await failing.createExercise('Pec deck', MuscleGroup.chest);
+      final viewModel = ExerciseDetailViewModel(failing, exercise: source);
+      addTearDown(viewModel.dispose);
+
+      final ok = await viewModel.mergeInto(target);
+
+      expect(ok, isFalse);
+      expect(viewModel.errorMessage, 'Hareketler birleştirilemedi.');
+      expect(viewModel.exercise, source);
+    });
+  });
+}
+
+class _MergeRecordingRepository extends FakeWorkoutRepository {
+  final List<({int sourceId, int targetId})> mergeCalls = [];
+
+  @override
+  Future<void> mergeExercises({required int sourceId, required int targetId}) {
+    mergeCalls.add((sourceId: sourceId, targetId: targetId));
+    return super.mergeExercises(sourceId: sourceId, targetId: targetId);
+  }
+}
+
+class _FailingMergeRepository extends FakeWorkoutRepository {
+  @override
+  Future<void> mergeExercises({required int sourceId, required int targetId}) async {
+    throw Exception('veritabanı hatası');
+  }
 }
 
 class _CountingRepository extends FakeWorkoutRepository {
