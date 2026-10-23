@@ -230,6 +230,9 @@ Ayarlar > Veriler ──► BackupViewModel ──► WorkoutRepository.exportBa
   (ya hep ya hiç).
 - `BackupFileService` platforma bağlı tek parçadır; testlerde sahtesi kullanılır, mantığın tamamı ViewModel'dedir.
 - JSON biçimi değişirse `BackupData.currentFormatVersion` artırılır ve eski sürümleri okuma desteği korunur.
+- Biçim 2 (#14): JSON, kullanıcının eklediği ölçüm türlerini (`measurement_types`) ve tüm ölçümleri (`measurements`)
+  içerir. Biçim 1 yedekler okunmaya devam eder (ölçüm listeleri boş). Geri yüklemede önce antrenmanlar, sonra
+  ölçümler içe aktarılır; her biri kendi transaction'ında (ya hep ya hiç). CSV yalnızca antrenmanları yazar.
 
 ## 11. Sürümleme ve yayın
 

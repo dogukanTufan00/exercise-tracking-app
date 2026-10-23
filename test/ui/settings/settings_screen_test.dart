@@ -5,12 +5,14 @@ import 'package:provider/provider.dart';
 
 import 'package:exercise_tracking_app/data/backup/backup_json_codec.dart';
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/repositories/measurement_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/data/services/backup_file_service.dart';
 import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
 import 'package:exercise_tracking_app/ui/settings/settings_screen.dart';
 
 import '../../fakes/fake_backup_file_service.dart';
+import '../../fakes/fake_measurement_repository.dart';
 import '../../fakes/fake_settings_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
@@ -38,6 +40,9 @@ void main() {
         providers: [
           Provider<WorkoutRepository>.value(
             value: repository ?? FakeWorkoutRepository(),
+          ),
+          Provider<MeasurementRepository>.value(
+            value: FakeMeasurementRepository(),
           ),
           Provider<BackupFileService>.value(
             value: files ?? FakeBackupFileService(),

@@ -7,10 +7,12 @@ import '../models/muscle_group.dart';
 const String backupFormatId = 'exercise-tracking-app-backup';
 
 /// Yedek verisini JSON metnine çevirir (okunabilir, iki boşluk girintili).
+///
+/// Her zaman güncel biçim sürümüyle ([BackupData.currentFormatVersion]) yazar.
 String encodeBackupJson(BackupData data) {
   final map = <String, Object?>{
     'format': backupFormatId,
-    'format_version': data.formatVersion,
+    'format_version': BackupData.currentFormatVersion,
     'exported_at': data.exportedAt.toIso8601String(),
     'exercises': [
       for (final exercise in data.exercises)
@@ -39,6 +41,22 @@ String encodeBackupJson(BackupData data) {
                 ],
               },
           ],
+        },
+    ],
+    'measurement_types': [
+      for (final type in data.measurementTypes)
+        {
+          'name': type.name,
+          'unit': type.unit,
+        },
+    ],
+    'measurements': [
+      for (final measurement in data.measurements)
+        {
+          'type': measurement.typeName,
+          'unit': measurement.unit,
+          'measured_at': measurement.measuredAt.toIso8601String(),
+          'value': measurement.value,
         },
     ],
   };
@@ -94,11 +112,28 @@ BackupData decodeBackupJson(String source) {
     workouts.add(_decodeWorkout(workoutList[i], 'workouts[$i]'));
   }
 
+  // Ölçümler biçim 2'de eklendi; biçim 1 dosyalarında bu anahtarlar hiç okunmaz.
+  final measurementTypes = <BackupMeasurementType>[];
+  final measurements = <BackupMeasurement>[];
+  if (version >= 2) {
+    final typeList = _optionalList(root, 'measurement_types', '');
+    for (var i = 0; i < typeList.length; i++) {
+      measurementTypes.add(_decodeMeasurementType(typeList[i], 'measurement_types[$i]'));
+    }
+
+    final measurementList = _optionalList(root, 'measurements', '');
+    for (var i = 0; i < measurementList.length; i++) {
+      measurements.add(_decodeMeasurement(measurementList[i], 'measurements[$i]'));
+    }
+  }
+
   return BackupData(
     formatVersion: version,
     exportedAt: exportedAt,
     exercises: exercises,
     workouts: workouts,
+    measurementTypes: measurementTypes,
+    measurements: measurements,
   );
 }
 
@@ -148,6 +183,24 @@ BackupWorkoutExercise _decodeWorkoutExercise(Object? value, String path) {
   );
 }
 
+BackupMeasurementType _decodeMeasurementType(Object? value, String path) {
+  final item = _asMap(value, path);
+  return BackupMeasurementType(
+    name: _requireString(item, 'name', path),
+    unit: _requireString(item, 'unit', path),
+  );
+}
+
+BackupMeasurement _decodeMeasurement(Object? value, String path) {
+  final item = _asMap(value, path);
+  return BackupMeasurement(
+    typeName: _requireString(item, 'type', path),
+    unit: _requireString(item, 'unit', path),
+    measuredAt: _requireDate(item, 'measured_at', path),
+    value: _requireNum(item, 'value', path).toDouble(),
+  );
+}
+
 /// [path] boşsa alan adı tek başına, değilse `path.key` biçiminde döner.
 String _fieldPath(String path, String key) => path.isEmpty ? key : '$path.$key';
 
@@ -164,6 +217,12 @@ List<dynamic> _requireList(Map<String, dynamic> map, String key, String path) {
   final value = map[key];
   if (value is! List) _corrupt(_fieldPath(path, key));
   return value;
+}
+
+/// Anahtar yoksa boş liste; varsa [_requireList] kuralları uygulanır.
+List<dynamic> _optionalList(Map<String, dynamic> map, String key, String path) {
+  if (!map.containsKey(key)) return const [];
+  return _requireList(map, key, path);
 }
 
 String _requireString(Map<String, dynamic> map, String key, String path) {

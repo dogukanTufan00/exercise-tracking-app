@@ -9,7 +9,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ### Eklendi
 - Antrenmanlar listesi haftalara bölünür: her haftanın başında "12–18 Ekim · 3 antrenman · 48 set" (#15).
-- Vücut ölçümleri için veritabanı (ilk şema geçişi, mevcut veriler korunur) (#14).
+- Alt gezinme çubuğu: Antrenmanlar / Hareketler / Profil; her sekme kendi ekran geçmişini korur (#13).
+- Profil sekmesi: kilo, boy, sağ/sol kol, sağ/sol bacak, bel, göğüs, kalça, boyun ve istenen her özel ölçüm;
+  tarihli kayıtlar, değişim ve grafik (#14). Veritabanı ilk kez yükseltilir (şema 2); mevcut veriler korunur.
+- Yedek dosyası (biçim 2) ölçümleri de içerir; eski yedekler okunmaya devam eder (#14).
 
 ## [0.2.0] - 2026-10-23
 

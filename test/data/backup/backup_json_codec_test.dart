@@ -481,4 +481,135 @@ void main() {
       expect(decoded.workouts.single.exercises.single.sets[1].weightKg, -5.0);
     });
   });
+
+  group('biçim 2: ölçümler', () {
+    BackupData measurementData() {
+      return BackupData(
+        exportedAt: DateTime(2026, 10, 20, 9),
+        exercises: const [],
+        workouts: const [],
+        measurementTypes: const [
+          BackupMeasurementType(name: 'Ön kol', unit: 'cm'),
+        ],
+        measurements: [
+          BackupMeasurement(
+            typeName: 'Bel',
+            unit: 'cm',
+            measuredAt: DateTime(2026, 10, 20, 12),
+            value: 82.5,
+          ),
+          BackupMeasurement(
+            typeName: 'Ön kol',
+            unit: 'cm',
+            measuredAt: DateTime(2026, 10, 21, 7),
+            value: 30,
+          ),
+        ],
+      );
+    }
+
+    test('gidiş-dönüşte ölçüm türleri ve ölçümler korunur', () {
+      final text = encodeBackupJson(measurementData());
+      final decoded = decodeBackupJson(text);
+
+      expect(decoded.formatVersion, 2);
+      expect(decoded.measurementTypes.single.name, 'Ön kol');
+      expect(decoded.measurementTypes.single.unit, 'cm');
+      expect(decoded.measurements.length, 2);
+      expect(decoded.measurements[0].typeName, 'Bel');
+      expect(decoded.measurements[0].measuredAt, DateTime(2026, 10, 20, 12));
+      expect(decoded.measurements[0].value, 82.5);
+      expect(decoded.measurements[1].typeName, 'Ön kol');
+      expect(decoded.measurements[1].value, 30.0);
+    });
+
+    test('yazılan JSON biçim 2 anahtarlarını ve alanlarını içerir', () {
+      final map = jsonDecode(encodeBackupJson(measurementData()))
+          as Map<String, dynamic>;
+
+      expect(map['format_version'], 2);
+      expect(map['measurement_types'], [
+        {'name': 'Ön kol', 'unit': 'cm'},
+      ]);
+      expect((map['measurements'] as List).first, {
+        'type': 'Bel',
+        'unit': 'cm',
+        'measured_at': '2026-10-20T12:00:00.000',
+        'value': 82.5,
+      });
+    });
+
+    test('ölçüm yoksa anahtarlar boş liste olarak yazılır', () {
+      final map = jsonDecode(encodeBackupJson(_sampleData()))
+          as Map<String, dynamic>;
+
+      expect(map['measurement_types'], isEmpty);
+      expect(map['measurements'], isEmpty);
+    });
+
+    test('eski sürümdeki nesne formatVersion 1 olsa da 2 yazılır', () {
+      final data = BackupData(
+        formatVersion: 1,
+        exportedAt: DateTime(2026, 10, 18),
+        exercises: const [],
+        workouts: const [],
+      );
+      final map = jsonDecode(encodeBackupJson(data)) as Map<String, dynamic>;
+
+      expect(map['format_version'], 2);
+    });
+
+    test('biçim 1 dosyasında ölçüm listeleri boş okunur', () {
+      final map = _validMap();
+
+      final decoded = decodeBackupJson(_encodeMap(map));
+
+      expect(decoded.formatVersion, 1);
+      expect(decoded.measurementTypes, isEmpty);
+      expect(decoded.measurements, isEmpty);
+    });
+
+    test('biçim 2 dosyasında ölçüm anahtarları yoksa boş liste', () {
+      final map = _validMap()..['format_version'] = 2;
+
+      final decoded = decodeBackupJson(_encodeMap(map));
+
+      expect(decoded.measurementTypes, isEmpty);
+      expect(decoded.measurements, isEmpty);
+    });
+
+    test('geçersiz ölçüm değeri hata yolunu mesajda gösterir', () {
+      final map = _validMap()..['format_version'] = 2;
+      map['measurements'] = <dynamic>[
+        <String, dynamic>{
+          'type': 'Bel',
+          'unit': 'cm',
+          'measured_at': '2026-10-20T12:00:00.000',
+          'value': 'yüksek',
+        },
+      ];
+      _expectCorrupt(_encodeMap(map), 'measurements[0].value');
+    });
+
+    test('ölçüm türü adı eksikse hata yolunu mesajda gösterir', () {
+      final map = _validMap()..['format_version'] = 2;
+      map['measurement_types'] = <dynamic>[
+        <String, dynamic>{'unit': 'cm'},
+      ];
+      _expectCorrupt(_encodeMap(map), 'measurement_types[0].name');
+    });
+
+    test('ölçüm tarihi okunamıyorsa hata yolunu mesajda gösterir', () {
+      final map = _validMap()..['format_version'] = 2;
+      map['measurements'] = <dynamic>[
+        <String, dynamic>{
+          'type': 'Bel',
+          'unit': 'cm',
+          'measured_at': 'dün',
+          'value': 80,
+        },
+      ];
+      _expectCorrupt(_encodeMap(map), 'measurements[0].measured_at');
+    });
+  });
 }

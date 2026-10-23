@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../../data/backup/backup_csv_exporter.dart';
 import '../../data/backup/backup_json_codec.dart';
 import '../../data/models/backup_data.dart';
+import '../../data/repositories/measurement_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../data/services/backup_file_service.dart';
 
@@ -10,11 +11,13 @@ import '../../data/services/backup_file_service.dart';
 class BackupViewModel extends ChangeNotifier {
   BackupViewModel(
     this._repository,
+    this._measurements,
     this._files, {
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
   final WorkoutRepository _repository;
+  final MeasurementRepository _measurements;
   final BackupFileService _files;
   final DateTime Function() _clock;
 
@@ -68,8 +71,19 @@ class BackupViewModel extends ChangeNotifier {
   /// dosyayı telefonda bulunabilir bir yere koymak.
   Future<void> exportJson() {
     return _run(() async {
-      final data = await _repository.exportBackup();
-      if (_isEmpty(data)) {
+      final workoutData = await _repository.exportBackup();
+      final measurementData = await _measurements.exportMeasurements();
+      final data = BackupData(
+        exportedAt: workoutData.exportedAt,
+        exercises: workoutData.exercises,
+        workouts: workoutData.workouts,
+        measurementTypes: measurementData.types,
+        measurements: measurementData.measurements,
+      );
+      if (_isEmpty(data) &&
+          data.measurementTypes.isEmpty &&
+          data.measurements.isEmpty) {
+        // JSON yedeği hareket, antrenman ve ölçümlerin hepsi boşsa alınmaz.
         _errorMessage = _noDataMessage;
         return;
       }
@@ -83,6 +97,8 @@ class BackupViewModel extends ChangeNotifier {
   }
 
   /// Seçilen JSON yedeğini mevcut verilerle birleştirir. Hiçbir mevcut veri silinmez.
+  ///
+  /// Önce antrenmanlar, sonra ölçümler içe aktarılır; her biri kendi içinde ya hep ya hiç.
   Future<void> importJson() {
     return _run(() async {
       final text = await _files.pickTextFile();
@@ -97,7 +113,20 @@ class BackupViewModel extends ChangeNotifier {
             'Yedek dosyasında geçersiz değerler var; hiçbir şey değiştirilmedi.';
         return;
       }
-      _message = _importMessage(result);
+
+      // Antrenmanlar artık yazıldı; ölçümler ayrı transaction'da. Hata olursa mesaj bunu söylemeli.
+      final int addedMeasurements;
+      try {
+        addedMeasurements = await _measurements.importMeasurements(
+          types: data.measurementTypes,
+          measurements: data.measurements,
+        );
+      } on ArgumentError {
+        _errorMessage =
+            'Antrenmanlar eklendi ama ölçümler geçersiz değerler içerdiği için eklenemedi.';
+        return;
+      }
+      _message = _importMessage(result, addedMeasurements);
     });
   }
 
@@ -121,17 +150,21 @@ class BackupViewModel extends ChangeNotifier {
 
   static const String _noDataMessage = 'Henüz kaydedilmiş veri yok.';
 
+  /// CSV için "veri yok" kontrolü: yalnızca hareket ve antrenman (CSV ölçüm içermez).
   static bool _isEmpty(BackupData data) {
     return data.exercises.isEmpty && data.workouts.isEmpty;
   }
 
-  static String _importMessage(ImportResult result) {
+  static String _importMessage(ImportResult result, int addedMeasurements) {
     final buffer = StringBuffer(
       '${result.addedWorkouts} antrenman eklendi, '
       '${result.skippedWorkouts} antrenman atlandı',
     );
     if (result.addedExercises > 0) {
       buffer.write(', ${result.addedExercises} yeni hareket');
+    }
+    if (addedMeasurements > 0) {
+      buffer.write(', $addedMeasurements ölçüm');
     }
     return buffer.toString();
   }

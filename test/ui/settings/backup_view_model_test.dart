@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,7 @@ import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/ui/settings/backup_view_model.dart';
 
 import '../../fakes/fake_backup_file_service.dart';
+import '../../fakes/fake_measurement_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 BackupData _backupWith({
@@ -34,14 +36,17 @@ final BackupWorkout _benchWorkout = BackupWorkout(
 
 void main() {
   late FakeWorkoutRepository repository;
+  late FakeMeasurementRepository measurements;
   late FakeBackupFileService files;
   late BackupViewModel viewModel;
 
   setUp(() {
     repository = FakeWorkoutRepository();
+    measurements = FakeMeasurementRepository();
     files = FakeBackupFileService();
     viewModel = BackupViewModel(
       repository,
+      measurements,
       files,
       clock: () => DateTime(2026, 3, 5, 9, 30),
     );
@@ -189,6 +194,107 @@ void main() {
       expect(data.workouts.length, 1);
       expect(data.workouts.single.title, 'Mevcut');
       expect(data.exercises, isEmpty);
+    });
+  });
+
+  group('ölçümler', () {
+    Future<void> addWaistMeasurement() async {
+      final type = await measurements.createMeasurementType('Ön kol', 'cm');
+      await measurements.addMeasurement(
+        type.id,
+        30,
+        measuredAt: DateTime(2026, 3, 1, 8),
+      );
+    }
+
+    test('JSON yedeğinde ölçüm türleri ve ölçümler bulunur', () async {
+      await addWaistMeasurement();
+
+      await viewModel.exportJson();
+
+      final saved = files.savedFiles.single;
+      final decoded = decodeBackupJson(saved.content);
+      expect(decoded.measurementTypes.single.name, 'Ön kol');
+      expect(decoded.measurementTypes.single.unit, 'cm');
+      expect(decoded.measurements.single.typeName, 'Ön kol');
+      expect(decoded.measurements.single.value, 30);
+      expect(decoded.measurements.single.measuredAt, DateTime(2026, 3, 1, 8));
+      expect(viewModel.message, 'Yedek kaydedildi');
+    });
+
+    test('yalnız ölçüm varken JSON yedeği alınır, CSV "veri yok" der', () async {
+      await addWaistMeasurement();
+
+      await viewModel.exportCsv();
+      expect(viewModel.errorMessage, 'Henüz kaydedilmiş veri yok.');
+      expect(files.sharedFiles, isEmpty);
+
+      viewModel.clearError();
+      await viewModel.exportJson();
+      expect(viewModel.errorMessage, isNull);
+      expect(files.savedFiles.single.fileName, 'antrenman-yedegi-2026-03-05.json');
+    });
+
+    test('geri yükleme ölçümleri ekler ve mesajda sayısını gösterir', () async {
+      files.pickResult = encodeBackupJson(
+        BackupData(
+          exportedAt: DateTime(2026, 3, 5),
+          exercises: const [],
+          workouts: const [],
+          measurementTypes: const [
+            BackupMeasurementType(name: 'Ön kol', unit: 'cm'),
+          ],
+          measurements: [
+            BackupMeasurement(
+              typeName: 'Ön kol',
+              unit: 'cm',
+              measuredAt: DateTime(2026, 3, 1, 8),
+              value: 30,
+            ),
+            BackupMeasurement(
+              typeName: 'Bel',
+              unit: 'cm',
+              measuredAt: DateTime(2026, 3, 2, 8),
+              value: 82.5,
+            ),
+          ],
+        ),
+      );
+
+      await viewModel.importJson();
+
+      expect(
+        viewModel.message,
+        '0 antrenman eklendi, 0 antrenman atlandı, 2 ölçüm',
+      );
+      expect(viewModel.errorMessage, isNull);
+      final types = await measurements.getMeasurementTypes();
+      final forearm = types.singleWhere((t) => t.name == 'Ön kol');
+      expect((await measurements.getMeasurements(forearm.id)).length, 1);
+      final waist = types.singleWhere((t) => t.name == 'Bel');
+      expect((await measurements.getMeasurements(waist.id)).single.value, 82.5);
+    });
+
+    test('biçim 1 yedeği hâlâ geri yüklenir (ölçüm yok)', () async {
+      files.pickResult = jsonEncode({
+        'format': 'exercise-tracking-app-backup',
+        'format_version': 1,
+        'exported_at': '2026-03-05T00:00:00.000',
+        'exercises': <dynamic>[],
+        'workouts': <dynamic>[
+          <String, dynamic>{
+            'started_at': '2026-03-04T18:00:00.000',
+            'title': 'Göğüs',
+            'exercises': <dynamic>[],
+          },
+        ],
+      });
+
+      await viewModel.importJson();
+
+      expect(viewModel.message, '1 antrenman eklendi, 0 antrenman atlandı');
+      expect(viewModel.errorMessage, isNull);
+      expect((await repository.getWorkoutSummaries()).length, 1);
     });
   });
 
