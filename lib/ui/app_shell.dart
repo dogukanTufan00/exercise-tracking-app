@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'app_tab.dart';
 import 'exercises/exercises_screen.dart';
 import 'history/history_screen.dart';
 import 'profile/profile_screen.dart';
@@ -17,7 +18,7 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  /// Sekme kökleri; sırası [NavigationBar] hedefleriyle aynıdır.
+  /// Sekme kökleri; sırası [AppTab] ve [NavigationBar] hedefleriyle aynıdır.
   static const List<Widget> _tabRoots = [
     HistoryScreen(),
     ExercisesScreen(),
@@ -31,24 +32,30 @@ class _AppShellState extends State<AppShell> {
     GlobalKey<NavigatorState>(),
   ];
 
-  int _selectedIndex = 0;
+  final AppTabNotifier _tab = AppTabNotifier(AppTab.workouts);
+
+  @override
+  void dispose() {
+    _tab.dispose();
+    super.dispose();
+  }
 
   /// Aktif sekmeyi seçer; aynı sekmeye tekrar dokunulursa o sekmenin yığını köke döner.
   void _onDestinationSelected(int index) {
-    if (index == _selectedIndex) {
+    final tab = AppTab.values[index];
+    if (tab == _tab.value) {
       _navigatorKeys[index].currentState?.popUntil((route) => route.isFirst);
-      return;
     }
-    setState(() => _selectedIndex = index);
+    _tab.select(tab);
   }
 
   /// Geri tuşu: önce aktif sekmenin yığını, sonra sekme 0'a dönüş, en son uygulamayı kapatma.
   Future<void> _handleBack() async {
-    final navigator = _navigatorKeys[_selectedIndex].currentState;
+    final navigator = _navigatorKeys[_tab.value.index].currentState;
     if (navigator != null && await navigator.maybePop()) return;
 
-    if (_selectedIndex != 0) {
-      setState(() => _selectedIndex = 0);
+    if (_tab.value != AppTab.workouts) {
+      _tab.select(AppTab.workouts);
       return;
     }
     await SystemNavigator.pop();
@@ -56,44 +63,50 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _handleBack();
-      },
-      child: Scaffold(
-        body: IndexedStack(
-          index: _selectedIndex,
-          children: [
-            for (var i = 0; i < _tabRoots.length; i++)
-              Navigator(
-                key: _navigatorKeys[i],
-                onGenerateRoute: (_) => MaterialPageRoute<void>(
-                  builder: (_) => _tabRoots[i],
+    return AppTabScope(
+      notifier: _tab,
+      child: PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          _handleBack();
+        },
+        child: ValueListenableBuilder<AppTab>(
+          valueListenable: _tab,
+          builder: (context, selectedTab, _) => Scaffold(
+            body: IndexedStack(
+              index: selectedTab.index,
+              children: [
+                for (var i = 0; i < _tabRoots.length; i++)
+                  Navigator(
+                    key: _navigatorKeys[i],
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      builder: (_) => _tabRoots[i],
+                    ),
+                  ),
+              ],
+            ),
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: selectedTab.index,
+              onDestinationSelected: _onDestinationSelected,
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.fitness_center),
+                  label: 'Antrenmanlar',
                 ),
-              ),
-          ],
-        ),
-        bottomNavigationBar: NavigationBar(
-          selectedIndex: _selectedIndex,
-          onDestinationSelected: _onDestinationSelected,
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.fitness_center),
-              label: 'Antrenmanlar',
+                NavigationDestination(
+                  icon: Icon(Icons.insights_outlined),
+                  selectedIcon: Icon(Icons.insights),
+                  label: 'Hareketler',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: 'Profil',
+                ),
+              ],
             ),
-            NavigationDestination(
-              icon: Icon(Icons.insights_outlined),
-              selectedIcon: Icon(Icons.insights),
-              label: 'Hareketler',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline),
-              selectedIcon: Icon(Icons.person),
-              label: 'Profil',
-            ),
-          ],
+          ),
         ),
       ),
     );

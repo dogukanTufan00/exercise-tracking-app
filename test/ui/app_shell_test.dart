@@ -20,9 +20,11 @@ void main() {
   setUpAll(() => initializeDateFormatting('tr'));
 
   late FakeWorkoutRepository repository;
+  late FakeMeasurementRepository measurements;
 
   setUp(() {
     repository = FakeWorkoutRepository();
+    measurements = FakeMeasurementRepository();
   });
 
   Future<void> pumpShell(
@@ -39,9 +41,7 @@ void main() {
       MultiProvider(
         providers: [
           Provider<WorkoutRepository>.value(value: repository),
-          Provider<MeasurementRepository>.value(
-            value: FakeMeasurementRepository(),
-          ),
+          Provider<MeasurementRepository>.value(value: measurements),
         ],
         child: MaterialApp(
           theme: buildAppTheme(AppThemeId.darkOrange),
@@ -170,6 +170,35 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(HistoryScreen), findsOneWidget);
     expect(find.byType(ExercisesScreen), findsNothing);
+  });
+
+  testWidgets('Hareketler sekmesine dönünce yeni hareket listede görünür',
+      (tester) async {
+    await seedPlank();
+    await pumpShell(tester);
+
+    await repository.createExercise('Squat', MuscleGroup.legs);
+    await tapTab(tester, 'Hareketler');
+
+    expect(find.text('Plank'), findsOneWidget);
+    expect(find.text('Squat'), findsOneWidget);
+  });
+
+  testWidgets('Profil sekmesine dönünce yeni ölçüm değeri görünür',
+      (tester) async {
+    await pumpShell(tester);
+    expect(find.text('82 kg'), findsNothing);
+
+    final types = await measurements.getMeasurementTypes();
+    final weight = types.firstWhere((t) => t.name == 'Kilo').id;
+    await measurements.addMeasurement(
+      weight,
+      82,
+      measuredAt: DateTime(2020, 1, 1, 12),
+    );
+    await tapTab(tester, 'Profil');
+
+    expect(find.text('82 kg'), findsOneWidget);
   });
 
   testWidgets('antrenman ekranı açıkken alt gezinme çubuğu görünmez',

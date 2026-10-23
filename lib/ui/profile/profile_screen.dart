@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/measurement_repository.dart';
+import '../app_tab.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import 'measurement_detail_screen.dart';
@@ -26,8 +28,38 @@ class ProfileScreen extends StatelessWidget {
   }
 }
 
-class _ProfileView extends StatelessWidget {
+class _ProfileView extends StatefulWidget {
   const _ProfileView();
+
+  @override
+  State<_ProfileView> createState() => _ProfileViewState();
+}
+
+class _ProfileViewState extends State<_ProfileView> {
+  late final ProfileViewModel _viewModel;
+
+  /// Seçili sekmeyi izleyen kaynak; ekran tek başına açıldıysa `null`.
+  ValueListenable<AppTab>? _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _viewModel = context.read<ProfileViewModel>();
+    _tabs = AppTabScope.maybeOf(context);
+    _tabs?.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    _tabs?.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  /// Profil sekmesi seçilince (yeniden seçimler dahil) özetleri yükleme göstergesi olmadan yeniler.
+  void _onTabChanged() {
+    if (_tabs?.value != AppTab.profile || !mounted) return;
+    _viewModel.refresh();
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -5,6 +6,7 @@ import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
+import '../app_tab.dart';
 import '../core/widgets/muscle_group_chip.dart';
 import '../exercise_detail/exercise_detail_screen.dart';
 import 'exercises_view_model.dart';
@@ -35,17 +37,29 @@ class _ExercisesView extends StatefulWidget {
 class _ExercisesViewState extends State<_ExercisesView> {
   late final ExercisesViewModel _viewModel;
 
+  /// Seçili sekmeyi izleyen kaynak; ekran tek başına açıldıysa `null`.
+  ValueListenable<AppTab>? _tabs;
+
   @override
   void initState() {
     super.initState();
     _viewModel = context.read<ExercisesViewModel>();
     _viewModel.addListener(_showPendingError);
+    _tabs = AppTabScope.maybeOf(context);
+    _tabs?.addListener(_onTabChanged);
   }
 
   @override
   void dispose() {
+    _tabs?.removeListener(_onTabChanged);
     _viewModel.removeListener(_showPendingError);
     super.dispose();
+  }
+
+  /// Hareketler sekmesi seçilince (yeniden seçimler dahil) listeyi mevcut sorguyla yeniler.
+  void _onTabChanged() {
+    if (_tabs?.value != AppTab.exercises || !mounted) return;
+    _viewModel.search(_viewModel.query);
   }
 
   /// Hata varsa SnackBar ile gösterir ve ViewModel'deki hatayı temizler.
