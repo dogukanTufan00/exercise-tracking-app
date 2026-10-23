@@ -7,6 +7,16 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.5.0] - 2026-10-23
+
+Düzeltme araçları sürümü.
+
+### Eklendi
+- Antrenmanda hareketi değiştirme: yanlış seçilen hareketin kaydı, setleri silinmeden başka bir harekete taşınır
+  (kart ⋮ → "Hareketi değiştir"); yalnızca o antrenman değişir (#11).
+- Hareket birleştirme: aynı hareketin iki kaydı (ör. "Pecdec" ve "Pec deck") tek harekette toplanır; tüm antrenman
+  ve program kayıtları taşınır, geçmiş ve rekorlar birleşir (hareket detayı ⋮ → "Başka bir hareketle birleştir") (#12).
+
 ## [0.4.0] - 2026-10-23
 
 Program sürümü.
@@ -86,7 +96,8 @@ Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor 
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.4.0...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.5.0
 [0.4.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.4.0
 [0.3.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0
