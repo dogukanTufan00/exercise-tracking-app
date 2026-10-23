@@ -21,12 +21,21 @@ void main() {
     repository = FakeWorkoutRepository();
   });
 
-  Future<void> pumpScreen(WidgetTester tester) async {
+  Future<void> pumpScreen(
+    WidgetTester tester, {
+    double textScale = 1.0,
+  }) async {
     await tester.pumpWidget(
       Provider<WorkoutRepository>.value(
         value: repository,
         child: MaterialApp(
           theme: buildAppTheme(AppThemeId.darkOrange),
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(context).copyWith(
+              textScaler: TextScaler.linear(textScale),
+            ),
+            child: child!,
+          ),
           home: const HistoryScreen(),
         ),
       ),
@@ -97,6 +106,65 @@ void main() {
 
     expect(find.byType(ExercisesScreen), findsOneWidget);
     expect(find.text('Hareketler'), findsWidgets);
+  });
+
+  testWidgets('farklı haftalardaki antrenmanlar her hafta için başlık gösterir',
+      (tester) async {
+    final bench = await repository.createExercise('Bench', MuscleGroup.chest);
+    // 2026-10-12 Pazartesi: 12–18 Ekim haftası (2 antrenman, 3 set).
+    final first = await repository.createWorkout(
+      title: 'Hafta bir A',
+      startedAt: DateTime(2026, 10, 13, 18),
+    );
+    final firstEntry =
+        await repository.addExerciseToWorkout(first.id, bench.id);
+    await repository.addSet(firstEntry.id, weightKg: 60, reps: 10);
+    final second = await repository.createWorkout(
+      title: 'Hafta bir B',
+      startedAt: DateTime(2026, 10, 14, 18),
+    );
+    final secondEntry =
+        await repository.addExerciseToWorkout(second.id, bench.id);
+    await repository.addSet(secondEntry.id, weightKg: 60, reps: 8);
+    await repository.addSet(secondEntry.id, weightKg: 60, reps: 6);
+    // 2026-10-19 Pazartesi: 19–25 Ekim haftası (1 antrenman, 2 set).
+    final third = await repository.createWorkout(
+      title: 'Hafta iki',
+      startedAt: DateTime(2026, 10, 20, 18),
+    );
+    final thirdEntry = await repository.addExerciseToWorkout(third.id, bench.id);
+    await repository.addSet(thirdEntry.id, weightKg: 70, reps: 5);
+    await repository.addSet(thirdEntry.id, weightKg: 70, reps: 5);
+
+    await pumpScreen(tester);
+
+    expect(find.text(formatWeekRange(DateTime(2026, 10, 12))), findsOneWidget);
+    expect(find.text(formatWeekRange(DateTime(2026, 10, 19))), findsOneWidget);
+    expect(find.text('2 antrenman · 3 set'), findsOneWidget);
+    expect(find.text('1 antrenman · 2 set'), findsOneWidget);
+    expect(find.text('Hafta bir A'), findsOneWidget);
+    expect(find.text('Hafta iki'), findsOneWidget);
+  });
+
+  testWidgets('hafta başlığı 360 × 780 ekranda yazı 1.3 iken taşmaz',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final bench = await repository.createExercise('Bench', MuscleGroup.chest);
+    final workout = await repository.createWorkout(
+      title: 'Uzun başlıklı antrenman',
+      startedAt: DateTime(2025, 12, 29, 18),
+    );
+    final entry = await repository.addExerciseToWorkout(workout.id, bench.id);
+    await repository.addSet(entry.id, weightKg: 60, reps: 10);
+
+    await pumpScreen(tester, textScale: 1.3);
+
+    expect(find.text(formatWeekRange(DateTime(2025, 12, 29))), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('uzun basma, Sil ve kart kaybolur', (tester) async {

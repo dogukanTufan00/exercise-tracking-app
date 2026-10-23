@@ -45,6 +45,33 @@ void main() {
     );
   });
 
+  test('weeks antrenmanları farklı haftalara göre gruplar', () async {
+    await repository.createWorkout(
+      title: 'Pazar',
+      startedAt: DateTime(2026, 10, 18, 20),
+    );
+    await repository.createWorkout(
+      title: 'Pazartesi',
+      startedAt: DateTime(2026, 10, 19, 7),
+    );
+    await repository.createWorkout(
+      title: 'Aynı hafta',
+      startedAt: DateTime(2026, 10, 13, 9),
+    );
+    await viewModel.load();
+
+    final weeks = viewModel.weeks;
+
+    expect(weeks, hasLength(2));
+    expect(weeks[0].weekStart, DateTime(2026, 10, 19));
+    expect(weeks[0].workouts.map((s) => s.workout.title), ['Pazartesi']);
+    expect(weeks[1].weekStart, DateTime(2026, 10, 12));
+    expect(
+      weeks[1].workouts.map((s) => s.workout.title),
+      ['Pazar', 'Aynı hafta'],
+    );
+  });
+
   test('startWorkout yeni id döner ve repository\'de antrenman oluşur', () async {
     final id = await viewModel.startWorkout();
 

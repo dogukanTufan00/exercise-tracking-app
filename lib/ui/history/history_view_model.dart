@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../domain/week_grouping.dart';
 
 /// Geçmiş ekranının durumu: antrenman özetleri, yükleme ve hata bilgisi.
 class HistoryViewModel extends ChangeNotifier {
@@ -16,6 +17,9 @@ class HistoryViewModel extends ChangeNotifier {
 
   /// Repository'nin döndürdüğü sırayla (en yeni üstte).
   List<WorkoutSummary> get workouts => _workouts;
+
+  /// [workouts] Pazartesi–Pazar haftalarına göre gruplanmış hali (en yeni hafta üstte).
+  List<WeekGroup> get weeks => groupByWeek(workouts);
 
   /// İlk yüklemede `true`; her [load] çağrısında da true olur.
   bool get isLoading => _isLoading;

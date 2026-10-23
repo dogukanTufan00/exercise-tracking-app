@@ -39,6 +39,36 @@ void main() {
     });
   });
 
+  group('formatWeekRange', () {
+    final now = DateTime(2026, 10, 23);
+
+    test('aynı ay: "13–19 Ekim"', () {
+      expect(formatWeekRange(DateTime(2026, 10, 12), now: now), '12–18 Ekim');
+      expect(formatWeekRange(DateTime(2026, 10, 19), now: now), '19–25 Ekim');
+    });
+
+    test('ay değişiyorsa iki ay adı yazılır: "29 Eyl – 5 Eki"', () {
+      expect(
+        formatWeekRange(DateTime(2026, 9, 28), now: now),
+        '28 Eyl – 4 Eki',
+      );
+    });
+
+    test('yıl değişiyorsa iki yıl yazılır: "29 Ara 2025 – 4 Oca 2026"', () {
+      expect(
+        formatWeekRange(DateTime(2025, 12, 29), now: now),
+        '29 Ara 2025 – 4 Oca 2026',
+      );
+    });
+
+    test('hafta şu yılda değilse yıl eklenir: "13–19 Ekim 2025"', () {
+      expect(
+        formatWeekRange(DateTime(2025, 10, 13), now: now),
+        '13–19 Ekim 2025',
+      );
+    });
+  });
+
   group('parseDecimal', () {
     test('virgüllü sayıyı okur', () {
       expect(parseDecimal('62,5'), 62.5);

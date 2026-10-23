@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../domain/week_grouping.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
@@ -85,19 +86,43 @@ class _HistoryView extends StatelessWidget {
       );
     }
 
+    final items = _flatten(viewModel.weeks);
     return ListView.separated(
       padding: const EdgeInsets.all(AppSpacing.screenPadding),
-      itemCount: viewModel.workouts.length,
-      separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+      itemCount: items.length,
+      separatorBuilder: (_, index) =>
+          SizedBox(height: _separatorHeight(items, index)),
       itemBuilder: (context, index) {
-        final summary = viewModel.workouts[index];
-        return _WorkoutCard(
-          summary: summary,
-          onTap: () => _openWorkout(context, viewModel, summary.workout.id),
-          onLongPress: () => _confirmDelete(context, viewModel, summary.workout),
-        );
+        final item = items[index];
+        return switch (item) {
+          _WeekHeaderItem(:final group) => _WeekHeader(group: group),
+          _WorkoutItem(:final summary) => _WorkoutCard(
+              summary: summary,
+              onTap: () => _openWorkout(context, viewModel, summary.workout.id),
+              onLongPress: () =>
+                  _confirmDelete(context, viewModel, summary.workout),
+            ),
+        };
       },
     );
+  }
+
+  /// Haftaları, her hafta başlığının altına o haftanın kartları gelecek şekilde düz bir listeye çevirir.
+  List<_ListItem> _flatten(List<WeekGroup> weeks) {
+    return [
+      for (final week in weeks) ...[
+        _WeekHeaderItem(week),
+        for (final summary in week.workouts) _WorkoutItem(summary),
+      ],
+    ];
+  }
+
+  /// İki öğe arasındaki boşluk: başlıktan karta [AppSpacing.sm], gruplar arasında [AppSpacing.lg],
+  /// kartlar arasında [AppSpacing.md].
+  double _separatorHeight(List<_ListItem> items, int index) {
+    if (items[index + 1] is _WeekHeaderItem) return AppSpacing.lg;
+    if (items[index] is _WeekHeaderItem) return AppSpacing.sm;
+    return AppSpacing.md;
   }
 
   /// Yeni antrenman oluşturup açar; dönünce listeyi yeniler.
@@ -178,6 +203,54 @@ class _HistoryView extends StatelessWidget {
         SnackBar(content: Text(message)),
       );
     });
+  }
+}
+
+/// Geçmiş listesinin düz öğeleri: hafta başlığı ya da antrenman kartı.
+sealed class _ListItem {
+  const _ListItem();
+}
+
+class _WeekHeaderItem extends _ListItem {
+  const _WeekHeaderItem(this.group);
+
+  final WeekGroup group;
+}
+
+class _WorkoutItem extends _ListItem {
+  const _WorkoutItem(this.summary);
+
+  final WorkoutSummary summary;
+}
+
+/// Bir haftanın başlığı: "13–19 Ekim" ve yanında soluk "3 antrenman · 48 set". Kart değildir, dokunulmaz.
+class _WeekHeader extends StatelessWidget {
+  const _WeekHeader({required this.group});
+
+  final WeekGroup group;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Wrap(
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: AppSpacing.sm,
+      runSpacing: AppSpacing.xs,
+      children: [
+        Text(
+          formatWeekRange(group.weekStart),
+          style: textTheme.titleSmall,
+        ),
+        Text(
+          '${group.workouts.length} antrenman · ${group.setCount} set',
+          style: textTheme.bodySmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    );
   }
 }
 
