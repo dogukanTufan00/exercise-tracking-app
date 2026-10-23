@@ -18,6 +18,15 @@ class FakeWorkoutRepository implements WorkoutRepository {
   int _nextWorkoutExerciseId = 1;
   int _nextSetId = 1;
 
+  /// Birleştirme sonrası çağrılan dinleyiciler (bkz. [addExercisesMergedListener]).
+  final List<void Function(int sourceId, int targetId)> _mergeListeners = [];
+
+  /// Bir hareket birleştirildikten sonra çağrılacak dinleyiciyi ekler. Program günleri
+  /// (`FakeProgramRepository`) böylece kendi hareket referanslarını günceller.
+  void addExercisesMergedListener(void Function(int sourceId, int targetId) listener) {
+    _mergeListeners.add(listener);
+  }
+
   // ---------------------------------------------------------------- Antrenmanlar
 
   @override
@@ -130,6 +139,25 @@ class FakeWorkoutRepository implements WorkoutRepository {
     return updated;
   }
 
+  @override
+  Future<void> mergeExercises({required int sourceId, required int targetId}) async {
+    if (sourceId == targetId) {
+      throw ArgumentError.value(targetId, 'targetId', 'Kaynak ve hedef aynı hareket olamaz');
+    }
+    _requireExercise(sourceId);
+    _requireExercise(targetId);
+
+    for (final we in _workoutExercises.values.toList()) {
+      if (we.exerciseId == sourceId) {
+        _workoutExercises[we.id] = we.copyWith(exerciseId: targetId);
+      }
+    }
+    _exercises.remove(sourceId);
+    for (final listener in _mergeListeners) {
+      listener(sourceId, targetId);
+    }
+  }
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   @override
@@ -149,6 +177,15 @@ class FakeWorkoutRepository implements WorkoutRepository {
     );
     _workoutExercises[we.id] = we;
     return we;
+  }
+
+  @override
+  Future<void> changeWorkoutExercise(int workoutExerciseId, int exerciseId) async {
+    _requireWorkoutExercise(workoutExerciseId);
+    _requireExercise(exerciseId);
+
+    final we = _workoutExercises[workoutExerciseId]!;
+    _workoutExercises[we.id] = we.copyWith(exerciseId: exerciseId);
   }
 
   @override

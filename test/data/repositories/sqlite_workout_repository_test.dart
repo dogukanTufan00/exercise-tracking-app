@@ -1,4 +1,5 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/repositories/sqlite_program_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/sqlite_workout_repository.dart';
 import 'package:exercise_tracking_app/data/services/database_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,6 +57,31 @@ void main() {
       expect(setCount.single['c'], 0);
       expect(weCount.single['c'], 0);
       expect(await repo.searchExercises('bench'), [bench]);
+    });
+
+    test('mergeExercises program gün hareketini hedefe taşır (ON DELETE RESTRICT aşılır)', () async {
+      final dbService =
+          DatabaseService(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      addTearDown(dbService.close);
+      final repo = SqliteWorkoutRepository(dbService);
+      final programs = SqliteProgramRepository(dbService);
+
+      final source = await repo.createExercise('Bench', MuscleGroup.chest);
+      final target = await repo.createExercise('Bench Press', MuscleGroup.chest);
+      final programId = (await programs.createProgram('Plan')).id;
+      final dayId = (await programs.addDay(programId, 'Gün A')).id;
+      await programs.addDayExercise(
+        dayId,
+        source.id,
+        const ExerciseTarget(sets: 3, reps: 10, weightKg: 40),
+      );
+
+      await repo.mergeExercises(sourceId: source.id, targetId: target.id);
+
+      final detail = (await programs.getProgramDetail(programId))!;
+      expect(detail.days.single.exercises.single.exercise.id, target.id);
+      expect(detail.days.single.exercises.single.dayExercise.exerciseId, target.id);
+      expect(await repo.searchExercises('bench'), [target]);
     });
   });
 }

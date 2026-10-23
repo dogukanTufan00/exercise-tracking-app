@@ -318,6 +318,128 @@ void runWorkoutRepositoryContractTests(
       });
     });
 
+    group('hareket birleştirme', () {
+      test('mergeExercises kaynağın antrenman kayıtlarını setleriyle hedefe taşır', () async {
+        final source = await exercise('Bench', MuscleGroup.chest);
+        final target = await exercise('Bench Press', MuscleGroup.chest);
+        final w1 = await repo.createWorkout(startedAt: DateTime(2026, 10, 1));
+        final we1 = await repo.addExerciseToWorkout(w1.id, source.id);
+        await repo.addSet(we1.id, weightKg: 60, reps: 10);
+        final w2 = await repo.createWorkout(startedAt: DateTime(2026, 10, 8));
+        final we2 = await repo.addExerciseToWorkout(w2.id, source.id);
+        await repo.addSet(we2.id, weightKg: 62.5, reps: 8);
+
+        await repo.mergeExercises(sourceId: source.id, targetId: target.id);
+
+        final detail1 = (await repo.getWorkoutDetail(w1.id))!;
+        expect(detail1.exercises.single.exercise.id, target.id);
+        expect(detail1.exercises.single.sets.single.weightKg, 60);
+        final detail2 = (await repo.getWorkoutDetail(w2.id))!;
+        expect(detail2.exercises.single.exercise.id, target.id);
+        expect(detail2.exercises.single.sets.single.reps, 8);
+      });
+
+      test('mergeExercises kaynağı katalogdan siler, hedefin adı ve kas grubu değişmez', () async {
+        final source = await exercise('Bench', MuscleGroup.arms);
+        final target = await exercise('Bench Press', MuscleGroup.chest);
+
+        await repo.mergeExercises(sourceId: source.id, targetId: target.id);
+
+        expect(await repo.searchExercises('bench'), [target]);
+        final found = (await repo.searchExercises('bench press')).single;
+        expect(found.name, 'Bench Press');
+        expect(found.muscleGroup, MuscleGroup.chest);
+      });
+
+      test('mergeExercises aynı id ya da olmayan id için ArgumentError fırlatır, hiçbir şey değişmez', () async {
+        final a = await exercise('A');
+        final b = await exercise('B');
+        final workout = await repo.createWorkout();
+        final we = await repo.addExerciseToWorkout(workout.id, a.id);
+        await repo.addSet(we.id, weightKg: 10, reps: 5);
+        final catalogBefore = await repo.searchExercises('');
+
+        await expectLater(repo.mergeExercises(sourceId: a.id, targetId: a.id), throwsArgumentError);
+        await expectLater(
+          repo.mergeExercises(sourceId: 999, targetId: b.id),
+          throwsArgumentError,
+        );
+        await expectLater(
+          repo.mergeExercises(sourceId: a.id, targetId: 999),
+          throwsArgumentError,
+        );
+
+        expect(await repo.searchExercises(''), catalogBefore);
+        final detail = (await repo.getWorkoutDetail(workout.id))!;
+        expect(detail.exercises.single.exercise.id, a.id);
+        expect(detail.exercises.single.sets, hasLength(1));
+      });
+    });
+
+    group('hareket değiştirme', () {
+      test('changeWorkoutExercise setleri, notu ve sırayı korur, yeni hareketi gösterir', () async {
+        final bench = await exercise('Bench Press');
+        final squat = await exercise('Squat', MuscleGroup.legs);
+        final workout = await repo.createWorkout(title: 'Upper');
+        await repo.addExerciseToWorkout(workout.id, bench.id);
+        final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+        await repo.updateExerciseNote(we.id, 'Yavaş');
+        await repo.addSet(we.id, weightKg: 60, reps: 10);
+        await repo.addSet(we.id, weightKg: 62.5, reps: 8);
+
+        await repo.changeWorkoutExercise(we.id, squat.id);
+
+        final detail = (await repo.getWorkoutDetail(workout.id))!;
+        expect(detail.exercises.map((e) => e.workoutExercise.position), [0, 1]);
+        expect(detail.exercises[0].exercise.id, bench.id);
+        final changed = detail.exercises[1];
+        expect(changed.workoutExercise.exerciseId, squat.id);
+        expect(changed.exercise.name, 'Squat');
+        expect(changed.exercise.muscleGroup, MuscleGroup.legs);
+        expect(changed.workoutExercise.note, 'Yavaş');
+        expect(changed.sets.map((s) => s.setNumber), [1, 2]);
+        expect(changed.sets.map((s) => s.weightKg), [60, 62.5]);
+        expect(changed.sets.map((s) => s.reps), [10, 8]);
+      });
+
+      test('changeWorkoutExercise geçen sefer ve ilerlemeyi yeni hareket altına taşır', () async {
+        final bench = await exercise('Bench Press');
+        final squat = await exercise('Squat', MuscleGroup.legs);
+        final w1 = await repo.createWorkout(startedAt: DateTime(2026, 10, 1));
+        final we1 = await repo.addExerciseToWorkout(w1.id, bench.id);
+        await repo.addSet(we1.id, weightKg: 60, reps: 10);
+        final w2 = await repo.createWorkout(startedAt: DateTime(2026, 10, 8));
+        final we2 = await repo.addExerciseToWorkout(w2.id, bench.id);
+        await repo.addSet(we2.id, weightKg: 62.5, reps: 8);
+
+        await repo.changeWorkoutExercise(we2.id, squat.id);
+
+        final w3 = await repo.createWorkout(startedAt: DateTime(2026, 10, 15));
+        final previousSquat = await repo.getPreviousSets(squat.id, beforeWorkoutId: w3.id);
+        expect(previousSquat.map((s) => s.weightKg), [62.5]);
+        final previousBench = await repo.getPreviousSets(bench.id, beforeWorkoutId: w3.id);
+        expect(previousBench.map((s) => s.weightKg), [60]);
+
+        final benchHistory = await repo.getExerciseHistory(bench.id);
+        expect(benchHistory.map((s) => s.workout.id), [w1.id]);
+        final squatHistory = await repo.getExerciseHistory(squat.id);
+        expect(squatHistory.map((s) => s.workout.id), [w2.id]);
+        expect(squatHistory.single.sets.single.reps, 8);
+      });
+
+      test('changeWorkoutExercise olmayan kayıt ya da hareket için ArgumentError fırlatır', () async {
+        final bench = await exercise('Bench Press');
+        final workout = await repo.createWorkout();
+        final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+
+        await expectLater(repo.changeWorkoutExercise(999, bench.id), throwsArgumentError);
+        await expectLater(repo.changeWorkoutExercise(we.id, 999), throwsArgumentError);
+
+        final detail = (await repo.getWorkoutDetail(workout.id))!;
+        expect(detail.exercises.single.exercise.id, bench.id);
+      });
+    });
+
     group('antrenmandaki hareketler', () {
       test('addExerciseToWorkout sona ekler: position 0, 1, 2', () async {
         final workout = await repo.createWorkout();

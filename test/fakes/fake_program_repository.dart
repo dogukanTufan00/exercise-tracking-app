@@ -11,7 +11,9 @@ import 'fake_workout_repository.dart';
 /// Hareket bilgisi ve antrenman oluşturma için verilen [FakeWorkoutRepository] kullanılır;
 /// iki repository aynı veriyi görür. Silinen id'ler tekrar kullanılmaz (SQLite AUTOINCREMENT gibi).
 class FakeProgramRepository implements ProgramRepository {
-  FakeProgramRepository(this._workouts);
+  FakeProgramRepository(this._workouts) {
+    _workouts.addExercisesMergedListener(_moveDayExercises);
+  }
 
   final FakeWorkoutRepository _workouts;
 
@@ -376,6 +378,20 @@ class FakeProgramRepository implements ProgramRepository {
   List<ProgramDayExercise> _dayExercisesOf(int dayId) {
     return _dayExercises.values.where((de) => de.programDayId == dayId).toList()
       ..sort((a, b) => a.position.compareTo(b.position));
+  }
+
+  /// Hareket birleştirmesinde kaynağın gün hareketlerini hedefe taşır (SQLite'taki UPDATE ile aynı).
+  void _moveDayExercises(int sourceId, int targetId) {
+    for (final de in _dayExercises.values.toList()) {
+      if (de.exerciseId != sourceId) continue;
+      _dayExercises[de.id] = ProgramDayExercise(
+        id: de.id,
+        programDayId: de.programDayId,
+        exerciseId: targetId,
+        position: de.position,
+        target: de.target,
+      );
+    }
   }
 
   /// Günü ve hareketlerini siler; bağlı antrenmanların gün bağlantısı kalkar (ON DELETE SET NULL).

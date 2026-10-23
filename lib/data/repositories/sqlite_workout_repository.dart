@@ -223,6 +223,33 @@ class SqliteWorkoutRepository implements WorkoutRepository {
     });
   }
 
+  @override
+  Future<void> mergeExercises({required int sourceId, required int targetId}) async {
+    if (sourceId == targetId) {
+      throw ArgumentError.value(targetId, 'targetId', 'Kaynak ve hedef aynı hareket olamaz');
+    }
+    final db = await _db;
+    await db.transaction((txn) async {
+      await _requireExists(txn, 'exercises', sourceId, 'Kaynak hareket bulunamadı');
+      await _requireExists(txn, 'exercises', targetId, 'Hedef hareket bulunamadı');
+
+      // program_day_exercises.exercise_id ON DELETE RESTRICT: önce taşınır, sonra kaynak silinir.
+      await txn.update(
+        'workout_exercises',
+        {'exercise_id': targetId},
+        where: 'exercise_id = ?',
+        whereArgs: [sourceId],
+      );
+      await txn.update(
+        'program_day_exercises',
+        {'exercise_id': targetId},
+        where: 'exercise_id = ?',
+        whereArgs: [sourceId],
+      );
+      await txn.delete('exercises', where: 'id = ?', whereArgs: [sourceId]);
+    });
+  }
+
   // -------------------------------------------------- Antrenmandaki hareketler
 
   @override
@@ -283,6 +310,27 @@ class SqliteWorkoutRepository implements WorkoutRepository {
         whereArgs: [workoutExerciseId],
       );
       await _renumberExercises(txn, workoutId);
+    });
+  }
+
+  @override
+  Future<void> changeWorkoutExercise(int workoutExerciseId, int exerciseId) async {
+    final db = await _db;
+    await db.transaction((txn) async {
+      await _requireExists(
+        txn,
+        'workout_exercises',
+        workoutExerciseId,
+        'Antrenmandaki hareket bulunamadı',
+      );
+      await _requireExists(txn, 'exercises', exerciseId, 'Hareket bulunamadı');
+
+      await txn.update(
+        'workout_exercises',
+        {'exercise_id': exerciseId},
+        where: 'id = ?',
+        whereArgs: [workoutExerciseId],
+      );
     });
   }
 
