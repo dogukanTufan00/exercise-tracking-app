@@ -103,3 +103,6 @@ await tester.pumpAndSettle();
 | 7 | N | [Antrenmanda rekor vurgusu (#8)](wave7-n-record-highlight.md) |
 | 8 | O | [Ölçümlerin veri katmanı ve ilk şema geçişi (#14)](wave8-o-measurement-data.md) |
 | 8 | P | [Geçmişi haftalara göre gruplama (#15)](wave8-p-week-grouping.md) |
+| 9 | Q | [Alt gezinme çubuğu (#13)](wave9-q-bottom-navigation.md) |
+| 9 | R | [Profil ve ölçüm ekranları (#14)](wave9-r-profile-screen.md) |
+| 9 | S | [Yedekte ölçümler, biçim 2 (#14)](wave9-s-backup-v2.md) |
