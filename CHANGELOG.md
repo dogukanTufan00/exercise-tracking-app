@@ -7,6 +7,10 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.3.0] - 2026-10-23
+
+Profil ve gezinme sürümü.
+
 ### Eklendi
 - Antrenmanlar listesi haftalara bölünür: her haftanın başında "12–18 Ekim · 3 antrenman · 48 set" (#15).
 - Alt gezinme çubuğu: Antrenmanlar / Hareketler / Profil; her sekme kendi ekran geçmişini korur (#13).
@@ -68,7 +72,8 @@ Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor 
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.2.0...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.3.0
 [0.2.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0
 [0.2.0-beta.2]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.2
 [0.2.0-beta.1]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.2.0-beta.1

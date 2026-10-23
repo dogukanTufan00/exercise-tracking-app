@@ -19,7 +19,9 @@ Tasarım kuralları için bkz. [DESIGN.md](DESIGN.md).
 **v0.2.0 ile eklenenler:** ilerleme grafikleri, kişisel rekorlar ve antrenmanda rekor vurgusu (#3, bkz. §12),
 hareket düzenleme (#10).
 
-**Henüz yok:** giriş sistemi, backend, program, profil/ölçümler, kas grubu yüzde analizi
+**v0.3.0 ile eklenenler:** alt gezinme çubuğu (#13), profil ve vücut ölçümleri (#14, şema 2), haftalık gruplama (#15).
+
+**Henüz yok:** giriş sistemi, backend, program (#16), kas grubu yüzde analizi
 (yapılacaklar GitHub Issues'ta).
 
 ## 2. Teknoloji
