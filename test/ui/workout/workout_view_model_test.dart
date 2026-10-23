@@ -3,6 +3,7 @@ import 'package:exercise_tracking_app/ui/workout/workout_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -520,6 +521,68 @@ void main() {
       await vm.updateSet(set.copyWith(weightKg: 40));
 
       expect(vm.pendingRecordMessage, isNull);
+      vm.dispose();
+    });
+  });
+
+  group('hedefli hareketler (programdan başlatılan antrenman)', () {
+    late FakeProgramRepository programs;
+
+    setUp(() {
+      programs = FakeProgramRepository(repo);
+    });
+
+    /// Bench'i verilen hedefle içeren bir program günü kurar ve bu günden antrenman başlatır.
+    Future<Workout> startWithTarget(ExerciseTarget target) async {
+      final program = await programs.createProgram('Test programı');
+      final day = await programs.addDay(program.id, 'Göğüs günü');
+      await programs.addDayExercise(day.id, bench.id, target);
+      return programs.startWorkoutFromDay(day.id);
+    }
+
+    test('hedefli hareketin ilk taslağı hedef ağırlık ve tekrardır', () async {
+      final workout = await startWithTarget(
+        const ExerciseTarget(sets: 3, reps: 10, weightKg: 40),
+      );
+      final vm = await loadedVm(workout.id);
+
+      final we = vm.detail!.exercises.single.workoutExercise;
+      expect(vm.draftFor(we.id).weightKg, 40);
+      expect(vm.draftFor(we.id).reps, 10);
+      vm.dispose();
+    });
+
+    test('hedefte ağırlık yoksa geçen seferin ilk seti ağırlığı, tekrar hedeften gelir', () async {
+      await createPreviousWithBench([(45, 6)]);
+      final workout = await startWithTarget(const ExerciseTarget(sets: 3, reps: 8));
+      final vm = await loadedVm(workout.id);
+
+      final we = vm.detail!.exercises.single.workoutExercise;
+      expect(vm.draftFor(we.id).weightKg, 45);
+      expect(vm.draftFor(we.id).reps, 8);
+      vm.dispose();
+    });
+
+    test('hedefte ağırlık da geçen sefer de yoksa 20 kg ve hedef tekrar kullanılır', () async {
+      final workout = await startWithTarget(const ExerciseTarget(sets: 3, reps: 8));
+      final vm = await loadedVm(workout.id);
+
+      final we = vm.detail!.exercises.single.workoutExercise;
+      expect(vm.draftFor(we.id).weightKg, 20);
+      expect(vm.draftFor(we.id).reps, 8);
+      vm.dispose();
+    });
+
+    test('hareketin seti varsa son set kuralı hedefe üstün gelir', () async {
+      final workout = await startWithTarget(
+        const ExerciseTarget(sets: 3, reps: 10, weightKg: 40),
+      );
+      final we = (await repo.getWorkoutDetail(workout.id))!.exercises.single.workoutExercise;
+      await repo.addSet(we.id, weightKg: 55, reps: 5);
+      final vm = await loadedVm(workout.id);
+
+      expect(vm.draftFor(we.id).weightKg, 55);
+      expect(vm.draftFor(we.id).reps, 5);
       vm.dispose();
     });
   });

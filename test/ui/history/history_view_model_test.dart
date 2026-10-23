@@ -1,15 +1,19 @@
+import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/ui/history/history_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
   late FakeWorkoutRepository repository;
+  late FakeProgramRepository programs;
   late HistoryViewModel viewModel;
 
   setUp(() {
     repository = FakeWorkoutRepository();
-    viewModel = HistoryViewModel(repository);
+    programs = FakeProgramRepository(repository);
+    viewModel = HistoryViewModel(repository, programs);
   });
 
   tearDown(() {
@@ -105,10 +109,54 @@ void main() {
 
   test('dispose sonrası load bildirim yapmaz ve hata vermez', () async {
     await repository.createWorkout(title: 'Test');
-    final disposable = HistoryViewModel(repository);
+    final disposable = HistoryViewModel(repository, programs);
     final pending = disposable.load();
     disposable.dispose();
 
     await expectLater(pending, completes);
+  });
+
+  group('program ile antrenman başlatma', () {
+    test('etkin program yoksa loadActiveProgram null döner', () async {
+      expect(await viewModel.loadActiveProgram(), isNull);
+      expect(viewModel.errorMessage, isNull);
+    });
+
+    test('etkin programın detayını döner', () async {
+      final program = await programs.createProgram('Üst/Alt');
+      await programs.addDay(program.id, 'Göğüs', weekday: 1);
+
+      final detail = await viewModel.loadActiveProgram();
+
+      expect(detail?.program.id, program.id);
+      expect(detail?.days.single.day.name, 'Göğüs');
+    });
+
+    test('programın bir gününden antrenman oluşturur; başlık gün adıdır', () async {
+      final bench = await repository.createExercise('Bench', MuscleGroup.chest);
+      final program = await programs.createProgram('Üst/Alt');
+      final day = await programs.addDay(program.id, 'Göğüs günü');
+      await programs.addDayExercise(
+        day.id,
+        bench.id,
+        const ExerciseTarget(sets: 3, reps: 10),
+      );
+
+      final id = await viewModel.startFromProgramDay(day.id);
+
+      expect(id, isNotNull);
+      final stored = await repository.getWorkoutDetail(id!);
+      expect(stored?.workout.title, 'Göğüs günü');
+      expect(stored?.workout.programDayId, day.id);
+      expect(stored?.exercises.single.exercise.id, bench.id);
+    });
+
+    test('var olmayan gün için null döner ve hata mesajı ayarlanır', () async {
+      final id = await viewModel.startFromProgramDay(999);
+
+      expect(id, isNull);
+      expect(viewModel.errorMessage, 'Antrenman başlatılamadı.');
+      expect(await repository.getWorkoutSummaries(), isEmpty);
+    });
   });
 }

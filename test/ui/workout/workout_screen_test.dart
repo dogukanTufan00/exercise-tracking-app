@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -376,6 +377,86 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.emoji_events), findsOneWidget);
       expect(find.text('Set ekle'), findsOneWidget);
+    });
+  });
+
+  group('program hedefi', () {
+    /// Bench Press'i 3 × 10 · 40 kg hedefiyle içeren bir program gününden antrenman başlatır.
+    Future<Workout> createWorkoutWithTarget() async {
+      final programs = FakeProgramRepository(repo);
+      final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+      final program = await programs.createProgram('Test');
+      final day = await programs.addDay(program.id, 'Göğüs günü');
+      await programs.addDayExercise(
+        day.id,
+        bench.id,
+        const ExerciseTarget(sets: 3, reps: 10, weightKg: 40),
+      );
+      return programs.startWorkoutFromDay(day.id);
+    }
+
+    testWidgets('açık kartta hedef satırı ve yapılan set sayısı görünür', (tester) async {
+      final workout = await createWorkoutWithTarget();
+
+      await pumpWorkout(tester, workout.id);
+
+      expect(find.text('Hedef: 3 × 10 · 40 kg · 0/3 set'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsNothing);
+    });
+
+    testWidgets('kapalı kartta da hedef satırı görünür', (tester) async {
+      final workout = await createWorkoutWithTarget();
+      final squat = await repo.createExercise('Squat', MuscleGroup.legs);
+      // Squat son hareket olduğu için açılır; Bench Press kapalı kalır.
+      await repo.addExerciseToWorkout(workout.id, squat.id);
+
+      await pumpWorkout(tester, workout.id);
+
+      expect(find.text('Hedef: 3 × 10 · 40 kg · 0/3 set'), findsOneWidget);
+      expect(find.text('Set ekle'), findsOneWidget);
+    });
+
+    testWidgets('hedef set sayısına ulaşınca onay ikonu çıkar', (tester) async {
+      final workout = await createWorkoutWithTarget();
+      final we = (await repo.getWorkoutDetail(workout.id))!
+          .exercises
+          .single
+          .workoutExercise;
+      for (var i = 0; i < 3; i++) {
+        await repo.addSet(we.id, weightKg: 40, reps: 10);
+      }
+
+      final semantics = tester.ensureSemantics();
+      await pumpWorkout(tester, workout.id);
+
+      expect(find.text('Hedef: 3 × 10 · 40 kg · 3/3 set'), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.bySemanticsLabel('Hedef tamamlandı'), findsOneWidget);
+      semantics.dispose();
+    });
+
+    testWidgets('hedefi olmayan hareketlerde hedef satırı yok', (tester) async {
+      final workout = await repo.createWorkout(title: 'Upper');
+      final bench = await repo.createExercise('Bench Press', MuscleGroup.chest);
+      await repo.addExerciseToWorkout(workout.id, bench.id);
+
+      await pumpWorkout(tester, workout.id);
+
+      expect(find.textContaining('Hedef:'), findsNothing);
+    });
+
+    testWidgets('telefon boyutunda (360x780, yazı 1.3) hedef satırı taşmaz', (tester) async {
+      final workout = await createWorkoutWithTarget();
+
+      await pumpWorkout(
+        tester,
+        workout.id,
+        size: const Size(360, 780),
+        textScale: 1.3,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.textContaining('Hedef:'), findsOneWidget);
     });
   });
 }

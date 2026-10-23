@@ -193,6 +193,8 @@ class _ExerciseCardState extends State<ExerciseCard> {
                 ),
               ],
             ),
+            if (widget.entry.workoutExercise.target case final target?)
+              _buildTargetRow(context, target),
             AnimatedSize(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
@@ -201,6 +203,38 @@ class _ExerciseCardState extends State<ExerciseCard> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Programdan gelen hedef satırı: "Hedef: 3 × 10 · 40 kg · 1/3 set". Hedef set sayısına ulaşınca sonda onay.
+  Widget _buildTargetRow(BuildContext context, ExerciseTarget target) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final done = widget.entry.sets.length;
+    final completed = done >= target.sets;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: AppSpacing.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Hedef: ${formatTarget(target)} · $done/${target.sets} set',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          if (completed) ...[
+            const SizedBox(width: AppSpacing.sm),
+            Semantics(
+              label: 'Hedef tamamlandı',
+              container: true,
+              child: Icon(Icons.check, size: 18, color: colorScheme.primary),
+            ),
+          ],
+        ],
       ),
     );
   }

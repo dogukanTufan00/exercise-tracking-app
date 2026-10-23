@@ -1,4 +1,5 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/repositories/program_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/core/formatters.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
@@ -9,15 +10,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
+import '../../fakes/fake_program_repository.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
   setUpAll(() => initializeDateFormatting('tr'));
 
   late FakeWorkoutRepository repository;
+  late FakeProgramRepository programs;
 
   setUp(() {
     repository = FakeWorkoutRepository();
+    programs = FakeProgramRepository(repository);
   });
 
   Future<void> pumpScreen(
@@ -25,8 +29,11 @@ void main() {
     double textScale = 1.0,
   }) async {
     await tester.pumpWidget(
-      Provider<WorkoutRepository>.value(
-        value: repository,
+      MultiProvider(
+        providers: [
+          Provider<WorkoutRepository>.value(value: repository),
+          Provider<ProgramRepository>.value(value: programs),
+        ],
         child: MaterialApp(
           theme: buildAppTheme(AppThemeId.darkOrange),
           builder: (context, child) => MediaQuery(
@@ -40,6 +47,47 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+  }
+
+  /// Yarının haftanın günü (1…7).
+  int tomorrowWeekday() {
+    final today = DateTime.now().weekday;
+    return today == DateTime.sunday ? DateTime.monday : today + 1;
+  }
+
+  /// Bugünün gününe "Göğüs günü" (1 hareket), yarının gününe "Sırt günü" (2 hareket) koyan etkin program kurar.
+  /// [withDays] false ise programın günü olmaz.
+  Future<void> createActiveProgram({bool withDays = true}) async {
+    final bench = await repository.createExercise('Bench', MuscleGroup.chest);
+    final row = await repository.createExercise('Row', MuscleGroup.back);
+    final program = await programs.createProgram('Üst/Alt');
+    if (!withDays) return;
+
+    final todayDay = await programs.addDay(
+      program.id,
+      'Göğüs günü',
+      weekday: DateTime.now().weekday,
+    );
+    final otherDay = await programs.addDay(
+      program.id,
+      'Sırt günü',
+      weekday: tomorrowWeekday(),
+    );
+    await programs.addDayExercise(
+      todayDay.id,
+      bench.id,
+      const ExerciseTarget(sets: 3, reps: 10, weightKg: 60),
+    );
+    await programs.addDayExercise(
+      otherDay.id,
+      row.id,
+      const ExerciseTarget(sets: 3, reps: 12),
+    );
+    await programs.addDayExercise(
+      otherDay.id,
+      bench.id,
+      const ExerciseTarget(sets: 4, reps: 8),
+    );
   }
 
   testWidgets('boşken boş durum metni görünür', (tester) async {
@@ -85,7 +133,7 @@ void main() {
     expect(find.text('0 hareket · 0 set'), findsOneWidget);
   });
 
-  testWidgets('FAB antrenman oluşturur ve antrenman ekranını açar',
+  testWidgets('etkin program yoksa FAB doğrudan antrenman açar',
       (tester) async {
     await pumpScreen(tester);
 
@@ -95,6 +143,109 @@ void main() {
     final workouts = await tester.runAsync(repository.getWorkoutSummaries);
     expect(workouts, hasLength(1));
     expect(find.byType(WorkoutScreen), findsOneWidget);
+    expect(find.text('Boş antrenman'), findsNothing);
+  });
+
+  testWidgets('programın hiç günü yoksa FAB doğrudan boş antrenman açar',
+      (tester) async {
+    await createActiveProgram(withDays: false);
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+
+    final workouts = await tester.runAsync(repository.getWorkoutSummaries);
+    expect(workouts, hasLength(1));
+    expect(workouts!.single.workout.title, isNull);
+    expect(find.byType(WorkoutScreen), findsOneWidget);
+  });
+
+  testWidgets('etkin program varken FAB seçim sayfasını açar; bugünün günü vurgulanır',
+      (tester) async {
+    await createActiveProgram();
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Antrenman başlat'), findsNWidgets(2));
+    expect(find.text('Bugün · Göğüs günü'), findsOneWidget);
+    expect(find.text('Sırt günü'), findsOneWidget);
+    expect(find.text('Boş antrenman'), findsOneWidget);
+    expect(find.byType(WorkoutScreen), findsNothing);
+  });
+
+  testWidgets('seçim sayfasında gün satırları gün adı, haftanın günü ve hareket sayısını gösterir',
+      (tester) async {
+    await createActiveProgram();
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+
+    // Bugünün günü hem vurgulu düğmede hem listede (1 hareket); yarınki gün listede (2 hareket).
+    expect(find.text('1 hareket'), findsOneWidget);
+    expect(
+      find.text('${formatWeekday(DateTime.now().weekday)} · 1 hareket'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('${formatWeekday(tomorrowWeekday())} · 2 hareket'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('bir gün seçilince o günün adıyla antrenman ekranı açılır',
+      (tester) async {
+    await createActiveProgram();
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sırt günü'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(WorkoutScreen), findsOneWidget);
+    final appBarTitle = find.descendant(
+      of: find.byType(AppBar),
+      matching: find.text('Sırt günü'),
+    );
+    expect(appBarTitle, findsWidgets);
+    final workouts = await tester.runAsync(repository.getWorkoutSummaries);
+    expect(workouts, hasLength(1));
+    expect(workouts!.single.exerciseCount, 2);
+  });
+
+  testWidgets('Boş antrenman seçeneği boş antrenman açar', (tester) async {
+    await createActiveProgram();
+    await pumpScreen(tester);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Boş antrenman'));
+    await tester.pumpAndSettle();
+
+    final workouts = await tester.runAsync(repository.getWorkoutSummaries);
+    expect(workouts, hasLength(1));
+    expect(workouts!.single.workout.title, isNull);
+    expect(find.byType(WorkoutScreen), findsOneWidget);
+  });
+
+  testWidgets('seçim sayfası dar ekranda (360x780, yazı 1.3) taşmaz',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await createActiveProgram();
+    await pumpScreen(tester, textScale: 1.3);
+
+    await tester.tap(find.byTooltip('Antrenman başlat'));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Bugün · Göğüs günü'), findsOneWidget);
   });
 
   testWidgets('Hareketler simgesi artık AppBar\'da yok (sekme oldu)',

@@ -3,7 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
+import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../domain/program_schedule.dart';
 import '../../domain/week_grouping.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
@@ -16,14 +18,17 @@ import 'history_view_model.dart';
 /// Geçmiş ekranı: uygulamanın açılış ekranı.
 ///
 /// Antrenman kartlarını listeler; dokunulunca antrenmanı açar, uzun basılınca siletir.
+/// "Antrenman başlat" etkin programı varsa önce gün seçtirir, yoksa boş antrenman açar.
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (context) =>
-          HistoryViewModel(context.read<WorkoutRepository>())..load(),
+      create: (context) => HistoryViewModel(
+        context.read<WorkoutRepository>(),
+        context.read<ProgramRepository>(),
+      )..load(),
       child: const _HistoryView(),
     );
   }
@@ -58,7 +63,7 @@ class _HistoryView extends StatelessWidget {
       body: _buildBody(context, viewModel),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Antrenman başlat',
-        onPressed: () => _startWorkout(context, viewModel),
+        onPressed: () => _onStartPressed(context, viewModel),
         child: const Icon(Icons.add),
       ),
     );
@@ -75,7 +80,7 @@ class _HistoryView extends StatelessWidget {
         title: 'İlk antrenmanını başlat',
         message: 'Yaptığın hareketleri, setleri ve notlarını buraya kaydet.',
         actionLabel: 'Antrenman başlat',
-        onAction: () => _startWorkout(context, viewModel),
+        onAction: () => _onStartPressed(context, viewModel),
       );
     }
 
@@ -118,12 +123,61 @@ class _HistoryView extends StatelessWidget {
     return AppSpacing.md;
   }
 
-  /// Yeni antrenman oluşturup açar; dönünce listeyi yeniler.
-  Future<void> _startWorkout(
+  /// "Antrenman başlat" düğmesi: etkin programda gün varsa seçim sayfasını açar; yoksa boş antrenman başlatır.
+  Future<void> _onStartPressed(
+    BuildContext context,
+    HistoryViewModel viewModel,
+  ) async {
+    final program = await viewModel.loadActiveProgram();
+    if (!context.mounted) return;
+
+    if (program == null) {
+      // Program okunamadıysa (hata mesajı gösterilir) antrenman açılmaz; yoksa boş antrenman.
+      if (viewModel.errorMessage == null) {
+        await _startBlankWorkout(context, viewModel);
+      }
+      return;
+    }
+    if (program.days.isEmpty) {
+      await _startBlankWorkout(context, viewModel);
+      return;
+    }
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => _StartSheet(
+        program: program,
+        suggested: suggestedDay(program, DateTime.now()),
+        onPickDay: (dayId) {
+          Navigator.of(sheetContext).pop();
+          _startFromDay(context, viewModel, dayId);
+        },
+        onPickBlank: () {
+          Navigator.of(sheetContext).pop();
+          _startBlankWorkout(context, viewModel);
+        },
+      ),
+    );
+  }
+
+  /// Boş (başlıksız) yeni antrenman oluşturup açar; dönünce listeyi yeniler.
+  Future<void> _startBlankWorkout(
     BuildContext context,
     HistoryViewModel viewModel,
   ) async {
     final id = await viewModel.startWorkout();
+    if (id == null || !context.mounted) return;
+    await _openWorkout(context, viewModel, id);
+  }
+
+  /// Programın bir gününden antrenman oluşturup açar; dönünce listeyi yeniler.
+  Future<void> _startFromDay(
+    BuildContext context,
+    HistoryViewModel viewModel,
+    int dayId,
+  ) async {
+    final id = await viewModel.startFromProgramDay(dayId);
     if (id == null || !context.mounted) return;
     await _openWorkout(context, viewModel, id);
   }
@@ -197,6 +251,112 @@ class _HistoryView extends StatelessWidget {
         SnackBar(content: Text(message)),
       );
     });
+  }
+}
+
+/// Antrenman başlatma sayfası: önerilen gün (varsa) en üstte ve tek dolu düğme; programın tüm günleri;
+/// en altta boş antrenman. Kaçırılan gün ya da uyarı yoktur.
+class _StartSheet extends StatelessWidget {
+  const _StartSheet({
+    required this.program,
+    required this.suggested,
+    required this.onPickDay,
+    required this.onPickBlank,
+  });
+
+  final ProgramDetail program;
+
+  /// Bugünün günü (varsa); program gününün id'si ile [onPickDay] çağrılır.
+  final ProgramDayDetail? suggested;
+  final ValueChanged<int> onPickDay;
+  final VoidCallback onPickBlank;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final today = suggested;
+
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.screenPadding,
+              0,
+              AppSpacing.screenPadding,
+              AppSpacing.sm,
+            ),
+            child: Text('Antrenman başlat', style: textTheme.titleLarge),
+          ),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenPadding,
+                0,
+                AppSpacing.screenPadding,
+                AppSpacing.screenPadding,
+              ),
+              children: [
+                if (today != null) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(AppSpacing.minTouchTarget),
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                      ),
+                      onPressed: () => onPickDay(today.day.id),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Bugün · ${today.day.name}',
+                              style: textTheme.titleMedium?.copyWith(
+                                color: colorScheme.onPrimary,
+                              ),
+                            ),
+                            Text(
+                              '${today.exercises.length} hareket',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                ],
+                for (final day in program.days)
+                  ListTile(
+                    minTileHeight: AppSpacing.minTouchTarget,
+                    title: Text(day.day.name),
+                    subtitle: Text(
+                      '${formatWeekday(day.day.weekday)} · ${day.exercises.length} hareket',
+                    ),
+                    onTap: () => onPickDay(day.day.id),
+                  ),
+                const Divider(),
+                ListTile(
+                  minTileHeight: AppSpacing.minTouchTarget,
+                  leading: const Icon(Icons.edit_outlined),
+                  title: const Text('Boş antrenman'),
+                  onTap: onPickBlank,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

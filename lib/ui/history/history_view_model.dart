@@ -1,14 +1,18 @@
 import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
+import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../domain/week_grouping.dart';
 
 /// Geçmiş ekranının durumu: antrenman özetleri, yükleme ve hata bilgisi.
+///
+/// Antrenman başlatma sayfası için etkin programı da okur ve programın bir gününden antrenman başlatır.
 class HistoryViewModel extends ChangeNotifier {
-  HistoryViewModel(this._repository);
+  HistoryViewModel(this._repository, this._programRepository);
 
   final WorkoutRepository _repository;
+  final ProgramRepository _programRepository;
 
   List<WorkoutSummary> _workouts = const [];
   bool _isLoading = true;
@@ -58,6 +62,30 @@ class HistoryViewModel extends ChangeNotifier {
       final workout = await _repository.createWorkout();
       return workout.id;
     } on Exception {
+      _errorMessage = 'Antrenman başlatılamadı.';
+      _notify();
+      return null;
+    }
+  }
+
+  /// Etkin programın detayı; etkin program yoksa `null`. Okuma hatasında `null` döner ve
+  /// [errorMessage] ayarlanır.
+  Future<ProgramDetail?> loadActiveProgram() async {
+    try {
+      return await _programRepository.getActiveProgramDetail();
+    } catch (_) {
+      _errorMessage = 'Program yüklenemedi.';
+      _notify();
+      return null;
+    }
+  }
+
+  /// Programın bir gününden yeni antrenman oluşturur ve id'sini döndürür; hata olursa `null`.
+  Future<int?> startFromProgramDay(int dayId) async {
+    try {
+      final workout = await _programRepository.startWorkoutFromDay(dayId);
+      return workout.id;
+    } catch (_) {
       _errorMessage = 'Antrenman başlatılamadı.';
       _notify();
       return null;
