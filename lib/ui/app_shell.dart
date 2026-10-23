@@ -5,8 +5,9 @@ import 'app_tab.dart';
 import 'exercises/exercises_screen.dart';
 import 'history/history_screen.dart';
 import 'profile/profile_screen.dart';
+import 'program/program_screen.dart';
 
-/// Uygulamanın kökü: alt gezinme çubuğu ve üç sekme (Antrenmanlar, Hareketler, Profil).
+/// Uygulamanın kökü: alt gezinme çubuğu ve dört sekme (Antrenmanlar, Program, Hareketler, Profil).
 ///
 /// Her sekmenin kendi [Navigator]'ı vardır; sekme değişince ekran ve kaydırma konumu korunur.
 /// Antrenman ve Ayarlar gibi tam ekran sayfalar kök navigator'da açılır ve çubuğun üstünü kaplar.
@@ -21,12 +22,14 @@ class _AppShellState extends State<AppShell> {
   /// Sekme kökleri; sırası [AppTab] ve [NavigationBar] hedefleriyle aynıdır.
   static const List<Widget> _tabRoots = [
     HistoryScreen(),
+    ProgramScreen(),
     ExercisesScreen(),
     ProfileScreen(),
   ];
 
   /// Her sekmenin navigator'ına ayrı anahtarla erişilir (geri tuşu ve köke dönüş için).
   final List<GlobalKey<NavigatorState>> _navigatorKeys = [
+    GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
@@ -93,6 +96,11 @@ class _AppShellState extends State<AppShell> {
                 NavigationDestination(
                   icon: Icon(Icons.fitness_center),
                   label: 'Antrenmanlar',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.event_note_outlined),
+                  selectedIcon: Icon(Icons.event_note),
+                  label: 'Program',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.insights_outlined),

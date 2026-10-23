@@ -1,5 +1,6 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/measurement_repository.dart';
+import 'package:exercise_tracking_app/data/repositories/program_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/app_shell.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
@@ -7,6 +8,7 @@ import 'package:exercise_tracking_app/ui/exercise_detail/exercise_detail_screen.
 import 'package:exercise_tracking_app/ui/exercises/exercises_screen.dart';
 import 'package:exercise_tracking_app/ui/history/history_screen.dart';
 import 'package:exercise_tracking_app/ui/profile/profile_screen.dart';
+import 'package:exercise_tracking_app/ui/program/program_screen.dart';
 import 'package:exercise_tracking_app/ui/workout/workout_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +16,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import '../fakes/fake_measurement_repository.dart';
+import '../fakes/fake_program_repository.dart';
 import '../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -21,10 +24,12 @@ void main() {
 
   late FakeWorkoutRepository repository;
   late FakeMeasurementRepository measurements;
+  late FakeProgramRepository programs;
 
   setUp(() {
     repository = FakeWorkoutRepository();
     measurements = FakeMeasurementRepository();
+    programs = FakeProgramRepository(repository);
   });
 
   Future<void> pumpShell(
@@ -42,6 +47,7 @@ void main() {
         providers: [
           Provider<WorkoutRepository>.value(value: repository),
           Provider<MeasurementRepository>.value(value: measurements),
+          Provider<ProgramRepository>.value(value: programs),
         ],
         child: MaterialApp(
           theme: buildAppTheme(AppThemeId.darkOrange),
@@ -73,44 +79,46 @@ void main() {
     await repository.createExercise('Plank', MuscleGroup.core);
   }
 
-  testWidgets('üç sekme etiketi görünür', (tester) async {
+  testWidgets('dört sekme etiketi sırayla görünür', (tester) async {
     await pumpShell(tester);
 
-    expect(
-      find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text('Antrenmanlar'),
-      ),
-      findsOneWidget,
+    final labels = find.descendant(
+      of: find.byType(NavigationBar),
+      matching: find.byType(Text),
     );
-    expect(
-      find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text('Hareketler'),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(
-        of: find.byType(NavigationBar),
-        matching: find.text('Profil'),
-      ),
-      findsOneWidget,
-    );
+    final texts = [for (final e in tester.widgetList<Text>(labels)) e.data];
+    expect(texts, ['Antrenmanlar', 'Program', 'Hareketler', 'Profil']);
     expect(find.byType(HistoryScreen), findsOneWidget);
   });
 
-  testWidgets('Hareketler ve Profil sekmeleri ilgili ekranı gösterir',
+  testWidgets('Program, Hareketler ve Profil sekmeleri ilgili ekranı gösterir',
       (tester) async {
     await pumpShell(tester);
 
+    await tapTab(tester, 'Program');
+    expect(find.byType(ProgramScreen), findsOneWidget);
+    expect(find.byType(HistoryScreen), findsNothing);
+
     await tapTab(tester, 'Hareketler');
     expect(find.byType(ExercisesScreen), findsOneWidget);
-    expect(find.byType(HistoryScreen), findsNothing);
+    expect(find.byType(ProgramScreen), findsNothing);
 
     await tapTab(tester, 'Profil');
     expect(find.byType(ProfileScreen), findsOneWidget);
     expect(find.byType(ExercisesScreen), findsNothing);
+  });
+
+  testWidgets('Program sekmesine dönünce yeni program görünür', (tester) async {
+    await pumpShell(tester);
+    expect(find.text('Üst/Alt'), findsNothing);
+
+    await programs.createProgram('Üst/Alt');
+    await tapTab(tester, 'Program');
+
+    expect(
+      find.descendant(of: find.byType(AppBar), matching: find.text('Üst/Alt')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('hareket detayı sekme değişince açık kalır', (tester) async {

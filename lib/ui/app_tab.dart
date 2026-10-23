@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 // böylece kabuk ile ekranlar arasında döngüsel import oluşmaz.
 
 /// Alt gezinme çubuğunun sekmeleri; sıra [NavigationBar] sırasıdır.
-enum AppTab { workouts, exercises, profile }
+enum AppTab { workouts, program, exercises, profile }
 
 /// Aktif sekmeyi tutar. Sekme değişince ve aynı sekme yeniden seçilince dinleyicilere haber verir.
 ///
