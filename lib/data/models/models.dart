@@ -4,6 +4,7 @@ export 'app_theme_id.dart';
 export 'backup_data.dart';
 export 'exercise.dart';
 export 'exercise_set.dart';
+export 'measurement.dart';
 export 'muscle_group.dart';
 export 'workout.dart';
 export 'workout_details.dart';

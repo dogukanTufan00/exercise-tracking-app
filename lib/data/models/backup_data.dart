@@ -50,17 +50,43 @@ class BackupWorkout {
   final List<BackupWorkoutExercise> exercises;
 }
 
-/// Tüm yedek: katalog (hiç kullanılmamış hareketler dahil) ve antrenmanlar.
+/// Kullanıcının eklediği bir ölçüm türü (yerleşikler yedeğe yazılmaz). (format 2)
+class BackupMeasurementType {
+  const BackupMeasurementType({required this.name, required this.unit});
+
+  final String name;
+  final String unit;
+}
+
+/// Tarihli bir ölçüm. Türüne adıyla başvurulur; tür hedefte yoksa bu ad ve birimle oluşturulur. (format 2)
+class BackupMeasurement {
+  const BackupMeasurement({
+    required this.typeName,
+    required this.unit,
+    required this.measuredAt,
+    required this.value,
+  });
+
+  final String typeName;
+  final String unit;
+  final DateTime measuredAt;
+  final double value;
+}
+
+/// Tüm yedek: katalog (hiç kullanılmamış hareketler dahil), antrenmanlar ve (format 2'den itibaren) ölçümler.
 class BackupData {
   const BackupData({
     required this.exportedAt,
     required this.exercises,
     required this.workouts,
+    this.measurementTypes = const [],
+    this.measurements = const [],
     this.formatVersion = currentFormatVersion,
   });
 
   /// JSON biçiminin sürümü. Biçim değişirse artırılır; içe aktarma eski sürümleri tanır.
-  static const int currentFormatVersion = 1;
+  /// 1: hareketler ve antrenmanlar. 2: + ölçüm türleri ve ölçümler.
+  static const int currentFormatVersion = 2;
 
   final int formatVersion;
   final DateTime exportedAt;
@@ -70,6 +96,12 @@ class BackupData {
 
   /// En eskiden en yeniye ([BackupWorkout.startedAt]).
   final List<BackupWorkout> workouts;
+
+  /// Kullanıcının eklediği ölçüm türleri (eklenme sırasıyla). Format 1 yedeklerde boş.
+  final List<BackupMeasurementType> measurementTypes;
+
+  /// Ölçümler, en eskiden en yeniye. Format 1 yedeklerde boş.
+  final List<BackupMeasurement> measurements;
 }
 
 /// İçe aktarmanın özeti; kullanıcıya gösterilir.

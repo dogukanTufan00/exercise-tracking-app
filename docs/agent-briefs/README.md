@@ -101,3 +101,5 @@ await tester.pumpAndSettle();
 | 5 | L | [İlerleme ekranına giriş noktaları (#7)](wave5-l-progress-entry-points.md) |
 | 6 | M | [Hareket düzenleme (#10)](wave6-m-edit-exercise.md) |
 | 7 | N | [Antrenmanda rekor vurgusu (#8)](wave7-n-record-highlight.md) |
+| 8 | O | [Ölçümlerin veri katmanı ve ilk şema geçişi (#14)](wave8-o-measurement-data.md) |
+| 8 | P | [Geçmişi haftalara göre gruplama (#15)](wave8-p-week-grouping.md) |

@@ -96,6 +96,29 @@ CREATE TABLE exercise_sets (
 CREATE INDEX idx_sets_we ON exercise_sets(workout_exercise_id);
 ```
 
+**Şema 2 (v0.3.0, #14): vücut ölçümleri.** Mevcut tablolara dokunulmaz; yalnızca şunlar eklenir:
+
+```sql
+CREATE TABLE measurement_types (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT    NOT NULL UNIQUE COLLATE NOCASE,
+  unit         TEXT    NOT NULL,
+  position     INTEGER NOT NULL,          -- listedeki sıra
+  builtin_key  TEXT    UNIQUE             -- 'weight', 'right_arm'…; kullanıcı türlerinde NULL
+);
+
+CREATE TABLE body_measurements (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  type_id      INTEGER NOT NULL REFERENCES measurement_types(id) ON DELETE CASCADE,
+  measured_at  TEXT    NOT NULL,          -- ISO 8601, yerel saat
+  value        REAL    NOT NULL CHECK (value > 0)
+);
+CREATE INDEX idx_measurements_type ON body_measurements(type_id, measured_at);
+```
+
+Yerleşik türler (`builtinMeasurementTypes`, `lib/data/models/measurement.dart`) hem yeni kurulumda (`onCreate`)
+hem de 1 → 2 geçişinde (`onUpgrade`) aynı sırayla eklenir. Ölçümler `MeasurementRepository` üzerinden okunur/yazılır.
+
 - SQLite'ta yabancı anahtarlar varsayılan olarak kapalıdır: `onConfigure` içinde `PRAGMA foreign_keys = ON` çalıştırılmalıdır.
 - Şema değişikliklerinde `version` artırılır ve `onUpgrade` yazılır; mevcut tablolar silinmez.
 
