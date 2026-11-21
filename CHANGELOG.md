@@ -8,7 +8,13 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 ## [Yayınlanmamış]
 
 ### Eklendi
-- Galaxy Watch (Wear OS) eşlikçi uygulamasının mimarisi ve iskeleti (`wear/`, ARCHITECTURE §15) (#24).
+- Galaxy Watch (Wear OS) eşlikçi uygulaması, faz 1 (`wear/`, ARCHITECTURE §15) (#24): telefonda açık antrenman saatte
+  görünür; saatten ağırlık/tekrar girip set eklenir ve silinir; saatte dinlenme sayacı ve titreşim. Telefon cepteyken ya da
+  bağlantı yokken saatin setleri sırada bekler, sonra telefona bir kez yazılır.
+- Saat, telefonda seçili temanın renklerini kullanır (açık mavi temada saat koyu zemin kullanır) (#24).
+
+### Değişti
+- Yapı numarası 7'den 1002'ye atladı (saat uygulamasıyla çakışma; ayrıntı ARCHITECTURE §15).
 
 ## [0.5.0] - 2026-10-23
 
