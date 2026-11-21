@@ -4,29 +4,28 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/watch/watch_sync_service.dart';
 import '../../domain/progress.dart';
+import '../../domain/set_draft.dart';
 import '../core/formatters.dart';
-
-/// Bir hareket için bir sonraki setin ağırlık ve tekrar taslağı.
-class SetDraft {
-  const SetDraft({required this.weightKg, required this.reps});
-
-  final double weightKg;
-  final int reps;
-}
 
 /// Antrenman ekranının durumu ve iş mantığı.
 ///
 /// Her değiştirici işlemden sonra detay repository'den yeniden yüklenir; taslaklar ise
 /// yalnızca kullanıcı değiştirince değişir.
+///
+/// [watchSync] verilirse antrenman saate bağlanır: yüklenince etkin olur, her değişiklikte
+/// anlık durumu yeniden yayınlanır, saatten gelen olaylarla değişince detay yenilenir.
 class WorkoutViewModel extends ChangeNotifier {
-  WorkoutViewModel(this._repository, this._workoutId);
+  WorkoutViewModel(this._repository, this._workoutId, {WatchSyncService? watchSync})
+      : _watchSync = watchSync {
+    _watchSubscription = watchSync?.workoutUpdates.listen(_onWatchUpdate);
+  }
 
   final WorkoutRepository _repository;
   final int _workoutId;
-
-  /// Taslak bulunamazsa kullanılan varsayılan değer.
-  static const SetDraft _defaultDraft = SetDraft(weightKg: 20, reps: 10);
+  final WatchSyncService? _watchSync;
+  StreamSubscription<int>? _watchSubscription;
 
   /// Gecikmeli not kaydının süresi.
   static const Duration _noteDelay = Duration(milliseconds: 500);
@@ -129,7 +128,9 @@ class WorkoutViewModel extends ChangeNotifier {
     if (existing != null) return existing;
 
     final entry = _entryFor(workoutExerciseId);
-    return entry == null ? _defaultDraft : _initialDraftFor(entry);
+    return entry == null
+        ? defaultSetDraft
+        : initialSetDraft(entry, previousSetsFor(entry.exercise.id));
   }
 
   // ----------------------------------------------------------- Yükleme
@@ -141,6 +142,7 @@ class WorkoutViewModel extends ChangeNotifier {
     try {
       await _reloadAll();
       if (!_initialExpansionDone) _expandLastOnFirstLoad();
+      unawaited(_watchSync?.setActiveWorkout(_workoutId));
     } catch (_) {
       _errorMessage = 'Antrenman yüklenemedi.';
     } finally {
@@ -327,11 +329,29 @@ class WorkoutViewModel extends ChangeNotifier {
   // ----------------------------------------------------------- Yardımcılar
 
   /// Ortak hata yakalama. Hata olursa [message] ile [errorMessage] ayarlanır.
+  /// Başarılı bir değiştirici işlemden sonra saate yeni anlık durum yayınlanır.
   Future<void> _run(String message, Future<void> Function() action) async {
     try {
       await action();
+      unawaited(_watchSync?.workoutChanged(_workoutId));
     } catch (_) {
       _errorMessage = message;
+      _notify();
+    }
+  }
+
+  /// Saatten gelen olayla bu antrenman değişti: detayı yeniler. Burada `workoutChanged` çağrılmaz
+  /// (yayın döngüsü olmasın).
+  void _onWatchUpdate(int workoutId) {
+    if (workoutId != _workoutId || _disposed) return;
+    unawaited(_refreshFromWatch());
+  }
+
+  Future<void> _refreshFromWatch() async {
+    try {
+      await _reload();
+    } catch (_) {
+      _errorMessage = 'Antrenman yenilenemedi.';
       _notify();
     }
   }
@@ -405,41 +425,19 @@ class WorkoutViewModel extends ChangeNotifier {
     _notify();
   }
 
-  /// Henüz taslağı olmayan her hareket için taslak oluşturur.
+  /// Henüz taslağı olmayan her hareket için taslak oluşturur (kural: `initialSetDraft`).
   void _ensureDrafts() {
     final current = _detail;
     if (current == null) return;
     for (final entry in current.exercises) {
       _drafts.putIfAbsent(
         entry.workoutExercise.id,
-        () => _initialDraftFor(entry),
+        () => initialSetDraft(entry, previousSetsFor(entry.exercise.id)),
       );
     }
     _drafts.removeWhere(
       (id, _) => !current.exercises.any((e) => e.workoutExercise.id == id),
     );
-  }
-
-  /// Taslak kuralı: bu antrenmandaki son set; yoksa hareketin hedefi varsa hedef (tekrar = hedef tekrar,
-  /// ağırlık = hedef ağırlık, yoksa "geçen sefer"in ilk seti, o da yoksa 20 kg); yoksa "geçen sefer"in
-  /// ilk seti; yoksa 20 kg × 10.
-  SetDraft _initialDraftFor(WorkoutExerciseDetail entry) {
-    if (entry.sets.isNotEmpty) {
-      final last = entry.sets.last;
-      return SetDraft(weightKg: last.weightKg, reps: last.reps);
-    }
-    final previous = previousSetsFor(entry.exercise.id);
-    final target = entry.workoutExercise.target;
-    if (target != null) {
-      final weightKg = target.weightKg ??
-          (previous.isNotEmpty ? previous.first.weightKg : _defaultDraft.weightKg);
-      return SetDraft(weightKg: weightKg, reps: target.reps);
-    }
-    if (previous.isNotEmpty) {
-      final first = previous.first;
-      return SetDraft(weightKg: first.weightKg, reps: first.reps);
-    }
-    return _defaultDraft;
   }
 
   WorkoutExerciseDetail? _entryFor(int workoutExerciseId) {
@@ -475,6 +473,8 @@ class WorkoutViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    unawaited(_watchSubscription?.cancel());
+    _watchSubscription = null;
     for (final timer in _noteTimers.values) {
       timer.cancel();
     }

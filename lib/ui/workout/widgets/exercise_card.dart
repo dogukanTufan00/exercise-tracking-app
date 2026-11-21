@@ -5,7 +5,7 @@ import '../../../data/models/models.dart';
 import '../../core/formatters.dart';
 import '../../core/theme/app_spacing.dart';
 import '../../core/widgets/muscle_group_chip.dart';
-import '../workout_view_model.dart';
+import '../../../domain/set_draft.dart';
 import 'set_edit_sheet.dart';
 import 'weight_reps_steppers.dart';
 

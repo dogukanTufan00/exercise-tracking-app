@@ -67,6 +67,11 @@ kotlin {
     }
 }
 
+dependencies {
+    // Wearable Data Layer: saat ile anlık durum ve olay alışverişi (bkz. docs/ARCHITECTURE.md §15.5).
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
+}
+
 flutter {
     source = "../.."
 }

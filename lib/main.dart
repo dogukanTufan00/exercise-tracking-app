@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
@@ -12,6 +14,10 @@ import 'data/repositories/sqlite_workout_repository.dart';
 import 'data/repositories/workout_repository.dart';
 import 'data/services/backup_file_service.dart';
 import 'data/services/database_service.dart';
+import 'data/watch/watch_sync_service.dart';
+import 'data/watch/watch_sync_store.dart';
+import 'data/watch/wear_channel.dart';
+import 'ui/core/formatters.dart';
 import 'ui/core/theme/theme_controller.dart';
 import 'ui/app_shell.dart';
 
@@ -28,6 +34,15 @@ Future<void> main() async {
   final themeController = ThemeController(settingsRepository);
   await themeController.load();
 
+  // Saat eşlemesi: saatten gelen olaylar burada işlenir (bkz. docs/ARCHITECTURE.md §15).
+  final watchSyncService = WatchSyncService(
+    repository: workoutRepository,
+    channel: MethodChannelWearChannel(),
+    store: PrefsWatchSyncStore(),
+    fallbackTitle: formatWorkoutDate,
+  );
+  unawaited(watchSyncService.start());
+
   runApp(
     ExerciseTrackerApp(
       workoutRepository: workoutRepository,
@@ -36,6 +51,7 @@ Future<void> main() async {
       settingsRepository: settingsRepository,
       themeController: themeController,
       backupFileService: DeviceBackupFileService(),
+      watchSyncService: watchSyncService,
     ),
   );
 }
@@ -50,6 +66,7 @@ class ExerciseTrackerApp extends StatelessWidget {
     required this.settingsRepository,
     required this.themeController,
     required this.backupFileService,
+    this.watchSyncService,
   });
 
   final WorkoutRepository workoutRepository;
@@ -59,8 +76,12 @@ class ExerciseTrackerApp extends StatelessWidget {
   final ThemeController themeController;
   final BackupFileService backupFileService;
 
+  /// Saat eşlemesi servisi; testlerde verilmez ve antrenman ekranı saatsiz çalışır.
+  final WatchSyncService? watchSyncService;
+
   @override
   Widget build(BuildContext context) {
+    final watchSync = watchSyncService;
     return MultiProvider(
       providers: [
         Provider<WorkoutRepository>.value(value: workoutRepository),
@@ -69,6 +90,8 @@ class ExerciseTrackerApp extends StatelessWidget {
         Provider<SettingsRepository>.value(value: settingsRepository),
         Provider<BackupFileService>.value(value: backupFileService),
         ChangeNotifierProvider<ThemeController>.value(value: themeController),
+        if (watchSync != null)
+          Provider<WatchSyncService>.value(value: watchSync),
       ],
       child: Consumer<ThemeController>(
         builder: (context, controller, _) {

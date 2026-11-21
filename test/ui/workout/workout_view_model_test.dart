@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/watch/watch_sync_service.dart';
 import 'package:exercise_tracking_app/ui/workout/workout_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import '../../fakes/fake_program_repository.dart';
+import '../../fakes/fake_wear_channel.dart';
+import '../../fakes/fake_watch_sync_store.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -652,6 +657,86 @@ void main() {
 
       expect(vm.draftFor(we.id).weightKg, 55);
       expect(vm.draftFor(we.id).reps, 5);
+      vm.dispose();
+    });
+  });
+
+  group('saat eşlemesi', () {
+    late FakeWearChannel channel;
+    late FakeWatchSyncStore store;
+    late WatchSyncService service;
+
+    setUp(() {
+      channel = FakeWearChannel();
+      store = FakeWatchSyncStore();
+      service = WatchSyncService(
+        repository: repo,
+        channel: channel,
+        store: store,
+        fallbackTitle: (_) => 'Tarih',
+        clock: () => DateTime(2026, 11, 21, 19),
+      );
+    });
+
+    tearDown(() async {
+      await service.dispose();
+      await channel.close();
+    });
+
+    /// Bir gecikmeden sonra bekleyen (işlenmeyi bekleyen) asenkron işler tamamlanır.
+    Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+
+    test('yüklenince antrenman saatte etkin olur', () async {
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 30));
+      final vm = WorkoutViewModel(repo, workout.id, watchSync: service);
+
+      await vm.load();
+      await settle();
+
+      expect(await store.getActiveWorkoutId(), workout.id);
+      expect(channel.lastSnapshot!['workoutId'], workout.id);
+      vm.dispose();
+    });
+
+    test('set eklenince anlık durum yeniden yayınlanır', () async {
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 30));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = WorkoutViewModel(repo, workout.id, watchSync: service);
+      await vm.load();
+      await settle();
+
+      await vm.addSet(we.id);
+      await settle();
+
+      final exercises = channel.lastSnapshot!['exercises'] as List<Object?>;
+      final sets = (exercises.single as Map<String, Object?>)['sets'] as List<Object?>;
+      expect(sets, hasLength(1));
+      vm.dispose();
+    });
+
+    test('saatten gelen olayla değişen antrenman detayı yeniden yüklenir', () async {
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 30));
+      final we = await repo.addExerciseToWorkout(workout.id, bench.id);
+      final vm = WorkoutViewModel(repo, workout.id, watchSync: service);
+      await vm.load();
+      await settle();
+      expect(vm.detail!.exercises.single.sets, isEmpty);
+
+      channel.enqueue(jsonEncode({
+        'protocol': 1,
+        'eventId': 'watch-1',
+        'type': 'addSet',
+        'workoutId': workout.id,
+        'workoutExerciseId': we.id,
+        'weightKg': 42.5,
+        'reps': 8,
+        'createdAt': '2026-11-21T18:41:05.000',
+      }));
+      await service.processPendingEvents();
+      await settle();
+
+      expect(vm.detail!.exercises.single.sets, hasLength(1));
+      expect(vm.detail!.exercises.single.sets.single.weightKg, 42.5);
       vm.dispose();
     });
   });

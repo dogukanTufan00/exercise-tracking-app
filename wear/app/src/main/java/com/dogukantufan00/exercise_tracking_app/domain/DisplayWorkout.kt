@@ -1,5 +1,7 @@
 package com.dogukantufan00.exercise_tracking_app.domain
 
+import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
 import com.dogukantufan00.exercise_tracking_app.data.WatchSnapshot
@@ -55,5 +57,75 @@ data class DisplaySet(
  * - [DisplayWorkout.hasPendingEvents]: en az bir olay uygulandıysa true.
  */
 fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): DisplayWorkout? {
-    TODO("Ajan AC uygular")
+    if (snapshot == null) return null
+
+    val applied = snapshot.appliedEventIds.toSet()
+    val events = pending.filter { it.workoutId == snapshot.workoutId && it.eventId !in applied }
+
+    val setsByExercise = mutableMapOf<Long, MutableList<DisplaySet>>()
+    val drafts = mutableMapOf<Long, WatchSetValue>()
+    for (exercise in snapshot.exercises) {
+        setsByExercise[exercise.workoutExerciseId] = exercise.sets.map { set ->
+            DisplaySet(
+                id = set.id,
+                pendingEventId = null,
+                setNumber = set.setNumber,
+                weightKg = set.weightKg,
+                reps = set.reps,
+            )
+        }.toMutableList()
+        drafts[exercise.workoutExerciseId] = exercise.draft
+    }
+
+    var hasPendingEvents = false
+    for (event in events) {
+        when (event) {
+            is AddSetEvent -> {
+                val sets = setsByExercise[event.workoutExerciseId]
+                if (sets != null && isValidSetValue(event.weightKg, event.reps)) {
+                    sets.add(
+                        DisplaySet(
+                            id = null,
+                            pendingEventId = event.eventId,
+                            setNumber = 0,
+                            weightKg = event.weightKg,
+                            reps = event.reps,
+                        ),
+                    )
+                    drafts[event.workoutExerciseId] = WatchSetValue(event.weightKg, event.reps)
+                    hasPendingEvents = true
+                }
+            }
+            is DeleteSetEvent -> {
+                val owner = setsByExercise.values.firstOrNull { sets -> sets.any { it.id == event.setId } }
+                if (owner != null) {
+                    owner.removeAll { it.id == event.setId }
+                    hasPendingEvents = true
+                }
+            }
+        }
+    }
+
+    return DisplayWorkout(
+        workoutId = snapshot.workoutId,
+        title = snapshot.title,
+        exercises = snapshot.exercises.map { exercise ->
+            DisplayExercise(
+                workoutExerciseId = exercise.workoutExerciseId,
+                name = exercise.name,
+                target = exercise.target,
+                sets = renumber(setsByExercise.getValue(exercise.workoutExerciseId)),
+                draft = drafts.getValue(exercise.workoutExerciseId),
+                previous = exercise.previous,
+            )
+        },
+        hasPendingEvents = hasPendingEvents,
+    )
 }
+
+/** Set değerleri geçerli mi (ağırlık negatif değil, tekrar pozitif); geçersiz olay yok sayılır. */
+private fun isValidSetValue(weightKg: Double, reps: Int): Boolean = weightKg >= 0.0 && reps > 0
+
+/** Setleri 1'den başlayarak yeniden numaralar. */
+private fun renumber(sets: List<DisplaySet>): List<DisplaySet> =
+    sets.mapIndexed { index, set -> set.copy(setNumber = index + 1) }

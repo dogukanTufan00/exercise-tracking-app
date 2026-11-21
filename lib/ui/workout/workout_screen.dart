@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/watch/watch_sync_service.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
@@ -28,9 +29,19 @@ class WorkoutScreen extends StatelessWidget {
       create: (context) => WorkoutViewModel(
         context.read<WorkoutRepository>(),
         workoutId,
+        watchSync: _readWatchSync(context),
       )..load(),
       child: const _WorkoutView(),
     );
+  }
+
+  /// Saat eşlemesi servisini sağlayıcıdan alır; sağlayıcı yoksa (testler) `null`.
+  static WatchSyncService? _readWatchSync(BuildContext context) {
+    try {
+      return context.read<WatchSyncService>();
+    } on ProviderNotFoundException {
+      return null;
+    }
   }
 }
 
