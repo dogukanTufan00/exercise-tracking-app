@@ -2,6 +2,7 @@ package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.FinishWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
@@ -54,6 +55,7 @@ data class DisplaySet(
  *   taslağı bu setin değerleri olur. Hareket anlık durumda yoksa olay yok sayılır.
  * - DeleteSetEvent: `workoutId` aynıysa o id'li onaylı set listeden çıkarılır; set yoksa yok sayılır.
  * - StartWorkoutEvent: iyimser durumu değiştirmez (§15.8); antrenman telefonda oluşunca anlık durumda görünür.
+ * - FinishWorkoutEvent: `workoutId` anlık durumunkiyle aynıysa sonuç null olur (antrenman saatte hemen kapanır).
  * - Her hareketin setleri sonunda 1, 2, 3… olarak numaralanır.
  * - [DisplayWorkout.hasPendingEvents]: en az bir olay uygulandıysa true.
  */
@@ -62,6 +64,8 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
 
     val applied = snapshot.appliedEventIds.toSet()
     val events = pending.filter { it.eventId !in applied }
+    // Bu antrenmanı bitirme isteği bekliyorsa saat onu hemen kapatır (telefon uygulayınca anlık durum zaten silinir).
+    if (events.any { it is FinishWorkoutEvent && it.workoutId == snapshot.workoutId }) return null
 
     val setsByExercise = mutableMapOf<Long, MutableList<DisplaySet>>()
     val drafts = mutableMapOf<Long, WatchSetValue>()
@@ -104,7 +108,7 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
                     hasPendingEvents = true
                 }
             }
-            is StartWorkoutEvent -> Unit
+            is StartWorkoutEvent, is FinishWorkoutEvent -> Unit
         }
     }
 

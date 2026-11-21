@@ -144,6 +144,21 @@ void main() {
     expect(event.toJson(), equals(original));
   });
 
+  test('finishWorkout olayı okunur ve aynen yazılır', () {
+    final original = <String, Object?>{
+      'protocol': 1,
+      'eventId': 'finish-1',
+      'type': 'finishWorkout',
+      'workoutId': 42,
+      'createdAt': '2026-11-22T19:30:00.000',
+    };
+
+    final event = WatchEvent.fromJson(original) as FinishWorkoutEvent;
+
+    expect(event.workoutId, 42);
+    expect(event.toJson(), equals(original));
+  });
+
   test('program JSON gidiş-dönüş aynen korunur', () {
     final original = <String, Object?>{
       'protocol': 1,

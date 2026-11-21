@@ -2,6 +2,7 @@ package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.FinishWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchExercise
@@ -81,6 +82,20 @@ class MergeOptimisticTest {
     @Test
     fun nullSnapshotGivesNull() {
         assertNull(mergeOptimistic(null, listOf(addSet())))
+    }
+
+    private fun finish(eventId: String = "f1", workoutId: Long = 42) =
+        FinishWorkoutEvent(eventId = eventId, workoutId = workoutId, createdAt = "2026-11-21T19:00:00.000")
+
+    @Test
+    fun pendingFinishHidesWorkout() {
+        assertNull(mergeOptimistic(snapshot(), listOf(addSet(), finish())))
+    }
+
+    @Test
+    fun finishOfAnotherWorkoutOrAlreadyAppliedIsIgnored() {
+        assertTrue(mergeOptimistic(snapshot(), listOf(finish(workoutId = 7))) != null)
+        assertTrue(mergeOptimistic(snapshot(appliedEventIds = listOf("f1")), listOf(finish())) != null)
     }
 
     @Test

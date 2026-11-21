@@ -256,6 +256,8 @@ class WatchSyncService {
           changedWorkoutIds.add(changed);
           // Saatten başlatılan antrenman etkin olur; sonraki set olayları onu hedefler.
           if (event is StartWorkoutEvent) activeId = changed;
+          // Bitirilen antrenmana sonradan gelen set olayları yok sayılır.
+          if (event is FinishWorkoutEvent) activeId = null;
         }
         processed.add(id);
         processedIds.add(id);
@@ -291,6 +293,7 @@ class WatchSyncService {
         StartWorkoutEvent() => await _applyStart(event),
         AddSetEvent() => await _applyAddSet(event, activeId),
         DeleteSetEvent() => await _applyDeleteSet(event, activeId),
+        FinishWorkoutEvent() => await _applyFinish(event, activeId),
       };
     } catch (error) {
       debugPrint('Saat olayı uygulanamadı: $error');
@@ -350,6 +353,14 @@ class WatchSyncService {
     if (!owns) return null;
 
     await repository.deleteSet(event.setId);
+    return event.workoutId;
+  }
+
+  /// Saatten bitirme: yalnızca etkin antrenman için; etkinlik kalkar (sonraki yayın anlık durumu siler).
+  /// Antrenman kaydına dokunulmaz.
+  Future<int?> _applyFinish(FinishWorkoutEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return null;
+    await store.setActiveWorkoutId(null);
     return event.workoutId;
   }
 

@@ -421,6 +421,49 @@ void main() {
     expect(await setsOf(started.id), hasLength(1));
   });
 
+  // ------------------------------------------------------------ Saatten bitirme
+
+  String finishEvent(String eventId, {int? workout}) => jsonEncode({
+        'protocol': 1,
+        'eventId': eventId,
+        'type': 'finishWorkout',
+        'workoutId': workout ?? workoutId,
+        'createdAt': '2026-11-21T19:00:00.000',
+      });
+
+  test('bitirme olayı etkinliği kaldırır, anlık durumu siler, kaydı korur', () async {
+    await repo.addSet(workoutExerciseId, weightKg: 30, reps: 8);
+    channel.enqueue(finishEvent('f1'));
+
+    await service.processPendingEvents();
+
+    expect(await store.getActiveWorkoutId(), isNull);
+    expect(channel.clearCount, greaterThanOrEqualTo(1));
+    expect(channel.ackedIds, ['f1']);
+    expect(await setsOf(workoutId), hasLength(1));
+  });
+
+  test('etkin olmayan antrenmanı bitirme olayı yok sayılır ama onaylanır', () async {
+    final other = await repo.createWorkout(startedAt: now);
+    channel.enqueue(finishEvent('f2', workout: other.id));
+
+    await service.processPendingEvents();
+
+    expect(await store.getActiveWorkoutId(), workoutId);
+    expect(channel.ackedIds, ['f2']);
+  });
+
+  test('bitirmeden sonra aynı turda gelen set olayı yok sayılır', () async {
+    channel.enqueue(addEvent('before'));
+    channel.enqueue(finishEvent('f3'));
+    channel.enqueue(addEvent('after'));
+
+    await service.processPendingEvents();
+
+    expect(await setsOf(workoutId), hasLength(1));
+    expect(channel.ackedIds, ['before', 'f3', 'after']);
+  });
+
   test('başlatılan antrenman workoutUpdates ile duyurulur', () async {
     store = FakeWatchSyncStore();
     service = makeService();

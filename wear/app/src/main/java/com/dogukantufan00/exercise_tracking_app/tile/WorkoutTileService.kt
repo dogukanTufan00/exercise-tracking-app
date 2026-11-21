@@ -64,72 +64,67 @@ class WorkoutTileService : TileService() {
         }
 
     private fun buildLayout(state: WorkoutTileState, palette: TilePalette): LayoutElementBuilders.LayoutElement {
-        val (title, subtitle, buttonLabel, action) = when (state) {
+        val content = when (state) {
             is WorkoutTileState.Active -> Content(
+                label = "SÜRÜYOR",
                 title = state.title,
                 subtitle = "${state.setCount} set",
                 buttonLabel = "Devam et",
                 action = openApp(),
+                highlighted = true,
             )
             is WorkoutTileState.Today -> Content(
-                title = "Bugün: ${state.dayName}",
+                label = "BUGÜN",
+                title = state.dayName,
                 subtitle = formatExerciseCount(state.exerciseCount),
                 buttonLabel = "Başla",
                 action = openApp(
                     LaunchActions.EXTRA_START_DAY_ID to
                         ActionBuilders.AndroidLongExtra.Builder().setValue(state.dayId).build(),
                 ),
+                highlighted = true,
             )
             is WorkoutTileState.StartNew -> if (state.hasProgram) {
                 Content(
-                    title = "Bugün planlı gün yok",
+                    label = "BUGÜN",
+                    title = "Planlı gün yok",
                     subtitle = "Program seç",
                     buttonLabel = "Antrenman başlat",
                     action = openApp(LaunchActions.EXTRA_OPEN_START to booleanExtra()),
+                    highlighted = false,
                 )
             } else {
                 Content(
+                    label = "ANTRENMAN",
                     title = "Program yok",
                     subtitle = "Boş antrenman",
                     buttonLabel = "Antrenman başlat",
                     action = openApp(LaunchActions.EXTRA_START_EMPTY to booleanExtra()),
+                    highlighted = false,
                 )
             }
         }
 
         val column = LayoutElementBuilders.Column.Builder()
             .setHorizontalAlignment(LayoutElementBuilders.HORIZONTAL_ALIGN_CENTER)
+            .addContent(text(content.label, 11f, palette.muted, bold = false, letterSpacingEm = 0.12f))
+            .addContent(spacer(2f))
+            .addContent(text(content.title, 20f, palette.onSurface, bold = true, maxLines = 2))
+            .addContent(text(content.subtitle, 13f, palette.muted, bold = false))
+            .addContent(spacer(12f))
+            .addContent(buttonBox(content.buttonLabel, content.action, palette))
+            .build()
+
+        // Kenarda ince halka: antrenman sürerken ya da bugüne gün varken vurgu renginde, değilse sönük.
+        val ring = LayoutElementBuilders.Arc.Builder()
+            .setAnchorAngle(DimensionBuilders.degrees(0f))
             .addContent(
-                LayoutElementBuilders.Text.Builder()
-                    .setText(title)
-                    .setMaxLines(1)
-                    .setFontStyle(
-                        LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(16f))
-                            .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
-                            .setColor(ColorBuilders.argb(palette.onSurface))
-                            .build(),
-                    )
+                LayoutElementBuilders.ArcLine.Builder()
+                    .setLength(DimensionBuilders.degrees(360f))
+                    .setThickness(DimensionBuilders.dp(4f))
+                    .setColor(ColorBuilders.argb(if (content.highlighted) palette.primary else palette.surface))
                     .build(),
             )
-            .addContent(
-                LayoutElementBuilders.Text.Builder()
-                    .setText(subtitle)
-                    .setMaxLines(1)
-                    .setFontStyle(
-                        LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(12f))
-                            .setColor(ColorBuilders.argb(palette.muted))
-                            .build(),
-                    )
-                    .build(),
-            )
-            .addContent(
-                LayoutElementBuilders.Spacer.Builder()
-                    .setHeight(DimensionBuilders.dp(8f))
-                    .build(),
-            )
-            .addContent(buttonBox(buttonLabel, action, palette))
             .build()
 
         return LayoutElementBuilders.Box.Builder()
@@ -144,23 +139,59 @@ class WorkoutTileService : TileService() {
                             .setColor(ColorBuilders.argb(palette.background))
                             .build(),
                     )
-                    .setPadding(
-                        ModifiersBuilders.Padding.Builder()
-                            .setAll(DimensionBuilders.dp(10f))
-                            .build(),
-                    )
                     .build(),
             )
-            .addContent(column)
+            .addContent(ring)
+            .addContent(
+                LayoutElementBuilders.Box.Builder()
+                    .setModifiers(
+                        ModifiersBuilders.Modifiers.Builder()
+                            .setPadding(
+                                ModifiersBuilders.Padding.Builder()
+                                    .setStart(DimensionBuilders.dp(24f))
+                                    .setEnd(DimensionBuilders.dp(24f))
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                    .addContent(column)
+                    .build(),
+            )
             .build()
     }
 
+    private fun text(
+        value: String,
+        sizeSp: Float,
+        color: Int,
+        bold: Boolean,
+        maxLines: Int = 1,
+        letterSpacingEm: Float = 0f,
+    ): LayoutElementBuilders.LayoutElement {
+        val style = LayoutElementBuilders.FontStyle.Builder()
+            .setSize(DimensionBuilders.sp(sizeSp))
+            .setColor(ColorBuilders.argb(color))
+        if (bold) style.setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
+        if (letterSpacingEm != 0f) style.setLetterSpacing(DimensionBuilders.em(letterSpacingEm))
+        return LayoutElementBuilders.Text.Builder()
+            .setText(value)
+            .setMaxLines(maxLines)
+            .setFontStyle(style.build())
+            .build()
+    }
+
+    private fun spacer(heightDp: Float): LayoutElementBuilders.LayoutElement =
+        LayoutElementBuilders.Spacer.Builder().setHeight(DimensionBuilders.dp(heightDp)).build()
+
+    /** Tile'ın tek dolu düğmesi: hap biçimli, 52 dp yükseklik (≥ 48 dp dokunma alanı). */
     private fun buttonBox(
         label: String,
         action: ActionBuilders.Action,
         palette: TilePalette,
     ): LayoutElementBuilders.LayoutElement =
         LayoutElementBuilders.Box.Builder()
+            .setHeight(DimensionBuilders.dp(52f))
+            .setVerticalAlignment(LayoutElementBuilders.VERTICAL_ALIGN_CENTER)
             .setModifiers(
                 ModifiersBuilders.Modifiers.Builder()
                     .setClickable(
@@ -174,34 +205,20 @@ class WorkoutTileService : TileService() {
                             .setColor(ColorBuilders.argb(palette.primary))
                             .setCorner(
                                 ModifiersBuilders.Corner.Builder()
-                                    .setRadius(DimensionBuilders.dp(22f))
+                                    .setRadius(DimensionBuilders.dp(26f))
                                     .build(),
                             )
                             .build(),
                     )
                     .setPadding(
                         ModifiersBuilders.Padding.Builder()
-                            .setStart(DimensionBuilders.dp(16f))
-                            .setEnd(DimensionBuilders.dp(16f))
-                            .setTop(DimensionBuilders.dp(8f))
-                            .setBottom(DimensionBuilders.dp(8f))
+                            .setStart(DimensionBuilders.dp(22f))
+                            .setEnd(DimensionBuilders.dp(22f))
                             .build(),
                     )
                     .build(),
             )
-            .addContent(
-                LayoutElementBuilders.Text.Builder()
-                    .setText(label)
-                    .setMaxLines(1)
-                    .setFontStyle(
-                        LayoutElementBuilders.FontStyle.Builder()
-                            .setSize(DimensionBuilders.sp(14f))
-                            .setWeight(LayoutElementBuilders.FONT_WEIGHT_BOLD)
-                            .setColor(ColorBuilders.argb(palette.onPrimary))
-                            .build(),
-                    )
-                    .build(),
-            )
+            .addContent(text(label, 15f, palette.onPrimary, bold = true))
             .build()
 
     /** Uygulamayı açan eylem; [extras] MainActivity'ye Intent ekstraları olarak gider. */
@@ -218,12 +235,14 @@ class WorkoutTileService : TileService() {
     private fun booleanExtra(): ActionBuilders.AndroidExtra =
         ActionBuilders.AndroidBooleanExtra.Builder().setValue(true).build()
 
-    /** Düzen için çözülmüş metinler ve eylem. */
+    /** Düzen için çözülmüş metinler ve eylem; [highlighted] kenar halkasını vurgu renginde çizer. */
     private data class Content(
+        val label: String,
         val title: String,
         val subtitle: String,
         val buttonLabel: String,
         val action: ActionBuilders.Action,
+        val highlighted: Boolean,
     )
 
     companion object {

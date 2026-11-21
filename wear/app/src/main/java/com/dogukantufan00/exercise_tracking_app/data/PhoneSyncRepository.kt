@@ -144,6 +144,18 @@ class PhoneSyncRepository(
         scope.launch { flush() }
     }
 
+    override suspend fun finishWorkout() {
+        val workoutId = snapshotFlow.value?.workoutId ?: return
+        store.update { events ->
+            events + FinishWorkoutEvent(
+                eventId = UUID.randomUUID().toString(),
+                workoutId = workoutId,
+                createdAt = LocalDateTime.now().toString(),
+            )
+        }
+        scope.launch { flush() }
+    }
+
     override suspend fun cancelPendingStart() {
         store.update { events -> events.filterNot { it is StartWorkoutEvent } }
     }
@@ -201,6 +213,8 @@ class PhoneSyncRepository(
                         is AddSetEvent ->
                             event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
                         is DeleteSetEvent ->
+                            event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
+                        is FinishWorkoutEvent ->
                             event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
                     }
                 }

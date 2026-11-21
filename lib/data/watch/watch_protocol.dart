@@ -247,6 +247,13 @@ sealed class WatchEvent {
             createdAt: createdAt,
             programDayId: json['programDayId'] as int?,
           );
+        case FinishWorkoutEvent.type:
+          return FinishWorkoutEvent(
+            protocol: protocol,
+            eventId: eventId,
+            workoutId: json['workoutId'] as int,
+            createdAt: createdAt,
+          );
         default:
           throw FormatException('Bilinmeyen olay türü: ${json['type']}');
       }
@@ -333,6 +340,23 @@ final class StartWorkoutEvent extends WatchEvent {
 
   @override
   Map<String, Object?> toJson() => {..._baseJson(type), 'programDayId': programDayId};
+}
+
+/// Saatten antrenman bitirildi: telefon antrenmanı etkin olmaktan çıkarır; kayıt ve setler olduğu gibi kalır.
+final class FinishWorkoutEvent extends WatchEvent {
+  const FinishWorkoutEvent({
+    super.protocol,
+    required super.eventId,
+    required this.workoutId,
+    required super.createdAt,
+  });
+
+  static const String type = 'finishWorkout';
+
+  final int workoutId;
+
+  @override
+  Map<String, Object?> toJson() => {..._baseJson(type), 'workoutId': workoutId};
 }
 
 /// Etkin programın bir günü (saatte gösterilen özet).

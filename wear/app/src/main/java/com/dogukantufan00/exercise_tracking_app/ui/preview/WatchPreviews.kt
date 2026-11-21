@@ -52,6 +52,8 @@ class PreviewWorkoutSyncRepository(
 
     override suspend fun startWorkout(programDayId: Long?) = Unit
 
+    override suspend fun finishWorkout() = Unit
+
     override suspend fun cancelPendingStart() = Unit
 }
 

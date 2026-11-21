@@ -17,11 +17,16 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
   edilebilir; bugünün gününü ve Başla/Devam et düğmesini gösteren Tile; antrenman sürerken kadranda (Now Bar) görünen
   Ongoing Activity; ekran kapalıyken de bitişte titreyen dinlenme sayacı (ilk antrenmanda bir kez fiziksel aktivite ve
   bildirim izni istenir). Telefonda hareket adı değiştirme, birleştirme, silme ve program düzenleme saate kendiliğinden yansır.
+- Antrenmanı saatten bitirme: hareket listesinin sonundaki "Antrenmanı bitir" (onaylı) saati başlatma ekranına
+  döndürür, dinlenme sayacını ve arka plan servisini kapatır; antrenman telefonda Geçmiş'te olduğu gibi kalır.
 
 ### Düzeltildi
 - Saatten başlatılan antrenman, telefonda Geçmiş ekranı yeniden açılana kadar görünmüyordu (#25).
 
 ### Değişti
+- Saat ekranları yeniden tasarlandı: başlık ve sayılarda telefondaki Oswald yazı tipi, ince çerçeveli kartlar ve
+  ekranda tek dolu vurgu düğmesi; hareket listesinde set halkası ("2/3"), hareket ekranında büyük "62,5 × 8" girişi,
+  dinlenmede kalın halka ve büyük sayaç; Tile'da kenar halkası ve 48 dp'den büyük düğme.
 - Yapı numarası 7'den 1002'ye atladı (saat uygulamasıyla çakışma; ayrıntı ARCHITECTURE §15).
 
 ## [0.5.0] - 2026-10-23

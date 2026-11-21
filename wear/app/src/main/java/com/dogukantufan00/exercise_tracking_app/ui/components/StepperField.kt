@@ -1,6 +1,5 @@
 package com.dogukantufan00.exercise_tracking_app.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -11,8 +10,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -25,21 +22,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.rotary.onRotaryScrollEvent
 import androidx.compose.ui.unit.dp
-import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
+import com.dogukantufan00.exercise_tracking_app.ui.theme.WatchType
 
 /** Döner çerçevenin bir adım için gerekli birikimi (piksel). */
-private const val ROTARY_PIXELS_PER_STEP = 40f
+internal const val ROTARY_PIXELS_PER_STEP = 40f
 
 /**
  * Etiketli değer alanı: solda −, ortada değer, sağda +. Odaktaki alan döner çerçeve/taçla değişir.
  *
  * [onStep] adım sayısını alır (−/+ düğmesi ±1, döner çerçeve birikime göre). Alana dokunmak [onFocus] çağırır.
- * Odaktaki alan vurgulu çizilir; düğmeye basınca odak tekrar bu alana döner ki döner çerçeve çalışmaya devam etsin.
+ * Odaktaki alan vurgu çerçevesiyle çizilir; düğmeye basınca odak tekrar bu alana döner ki döner çerçeve çalışsın.
  */
 @Composable
 fun StepperField(
@@ -57,13 +53,6 @@ fun StepperField(
         if (focused) focusRequester.requestFocus()
     }
 
-    val shape = RoundedCornerShape(24.dp)
-    val valueBackground = if (focused) {
-        MaterialTheme.colorScheme.primaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceContainer
-    }
-
     Column(
         modifier = modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -78,27 +67,24 @@ fun StepperField(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
-            Button(
+            RoundStepButton(
+                text = "−",
                 onClick = {
                     onFocus()
                     onStep(-1)
                     focusRequester.requestFocus()
                 },
-                modifier = Modifier.size(48.dp),
-            ) {
-                Text("−")
-            }
+            )
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 6.dp)
-                    .heightIn(min = 48.dp)
-                    .clip(shape)
-                    .background(valueBackground, shape)
+                    .heightIn(min = 52.dp)
+                    .clip(CardShape)
                     .border(
-                        width = if (focused) 2.dp else 0.dp,
-                        color = if (focused) MaterialTheme.colorScheme.primary else Color.Transparent,
-                        shape = shape,
+                        width = if (focused) 1.5.dp else 1.dp,
+                        color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        shape = CardShape,
                     )
                     .focusRequester(focusRequester)
                     .onFocusChanged { if (it.isFocused) onFocus() }
@@ -117,20 +103,18 @@ fun StepperField(
             ) {
                 Text(
                     text = valueText,
-                    style = MaterialTheme.typography.numeralMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    style = WatchType.bigNumber,
+                    color = if (focused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
                 )
             }
-            Button(
+            RoundStepButton(
+                text = "+",
                 onClick = {
                     onFocus()
                     onStep(1)
                     focusRequester.requestFocus()
                 },
-                modifier = Modifier.size(48.dp),
-            ) {
-                Text("+")
-            }
+            )
         }
     }
 }

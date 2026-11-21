@@ -464,7 +464,15 @@ geri geldiğinde son durumu kendiliğinden alır. JSON, DataMap'te `json` anahta
   "workoutExerciseId": 101, "weightKg": 40.0, "reps": 10, "createdAt": "2026-11-21T18:41:05.000" }
 { "protocol": 1, "eventId": "uuid", "type": "deleteSet", "workoutId": 42, "setId": 900,
   "createdAt": "2026-11-21T18:42:00.000" }
+{ "protocol": 1, "eventId": "uuid", "type": "finishWorkout", "workoutId": 42,
+  "createdAt": "2026-11-22T19:30:00.000" }
 ```
+
+- `finishWorkout` (2026-11-22, kullanıcı kararı): saatte "Antrenmanı bitir" + onay. Telefon, `workoutId` etkin
+  antrenmansa etkinliği kaldırır (anlık durum silinir); antrenman kaydı ve setler değişmez, bitiş saati saklanmaz
+  (süre #22'nin işi). Aynı turda bitirmeden sonra gelen set olayları yok sayılır. Saat, bekleyen bitirme olayı varken
+  o antrenmanı hemen gizler (iyimser durum `null`); servis, sayaç ve Ongoing Activity böylece kapanır.
+  Telefonda antrenman yeniden açılırsa yine etkin olur.
 
 Kurallar:
 - **Etkisi tam bir kez:** telefon işlediği olay id'lerini (son 200) saklar; aynı id ikinci kez gelirse yok sayar.
@@ -505,6 +513,11 @@ Kurallar:
 - **Dinlenme süresi** saatte ayarlanır ve saatte saklanır (varsayılan 90 sn). Faz 1'de sayaç çalışırken ekran açık tutulur;
   ekran kapalıyken güvenilir çalışma (foreground service + Ongoing Activity) Faz 2'dedir.
 - Saat teması telefonda seçili temayı izler (§15.7). Yazılar Türkçe.
+- **Görünüm (2026-11-22, kullanıcı seçimi "A + B"):** DESIGN.md'nin saat karşılığı. Başlık ve sayılar Oswald
+  (`res/font/oswald.ttf`, `ui/theme/WatchType.kt`); kartlar dolgusuz ve ince çerçeveli (`CardButton`), ekranda tek dolu
+  vurgu düğmesi (bugünün günü / "SET TAMAM" / "ATLA"). Hareket listesinde set halkası, hareket ekranında tek satırda büyük
+  "ağırlık × tekrar" (`SetInput`; dokunulan sayı seçilir, döner çerçeve seçili sayıyı değiştirir), dinlenmede kalın
+  halka ve büyük sayaç. Dokunma alanları ≥ 48 dp.
 - **Test:** `domain/` ve protokol için JVM birim testleri (`gradlew test`); ekranlar gerçek saatte denenir
   (Wi-Fi üzerinden `adb`).
 

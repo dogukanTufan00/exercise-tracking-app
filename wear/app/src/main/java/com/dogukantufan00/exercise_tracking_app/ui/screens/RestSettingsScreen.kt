@@ -13,6 +13,7 @@ import androidx.wear.compose.material3.Text
 import com.dogukantufan00.exercise_tracking_app.domain.formatDuration
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
 import com.dogukantufan00.exercise_tracking_app.ui.components.StepperField
+import com.dogukantufan00.exercise_tracking_app.ui.theme.WatchType
 
 /** Varsayılan dinlenme süresi ayarı: −/+ ya da döner çerçeve ile 15 sn adımlarla (15 sn – 10 dk). */
 @Composable
@@ -28,7 +29,12 @@ fun RestSettingsScreen(viewModel: WatchWorkoutViewModel) {
         ) {
             item {
                 ListHeader {
-                    Text(text = "Dinlenme süresi", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = "DİNLENME SÜRESİ",
+                        style = WatchType.header,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             }
             item {

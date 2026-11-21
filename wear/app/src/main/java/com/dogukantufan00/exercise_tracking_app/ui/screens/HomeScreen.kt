@@ -1,9 +1,12 @@
 package com.dogukantufan00.exercise_tracking_app.ui.screens
 
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -22,8 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.ScalingLazyListState
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
+import androidx.wear.compose.material3.AlertDialog
 import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
@@ -35,10 +38,14 @@ import com.dogukantufan00.exercise_tracking_app.data.WatchProgramDay
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayExercise
 import com.dogukantufan00.exercise_tracking_app.domain.formatDuration
 import com.dogukantufan00.exercise_tracking_app.domain.formatExerciseCount
-import com.dogukantufan00.exercise_tracking_app.domain.formatSetProgress
 import com.dogukantufan00.exercise_tracking_app.domain.suggestedDay
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
+import com.dogukantufan00.exercise_tracking_app.ui.components.AccentCardButton
+import com.dogukantufan00.exercise_tracking_app.ui.components.CardButton
 import com.dogukantufan00.exercise_tracking_app.ui.components.RestIndicator
+import com.dogukantufan00.exercise_tracking_app.ui.components.SetProgressRing
+import com.dogukantufan00.exercise_tracking_app.ui.theme.WatchType
+import com.dogukantufan00.exercise_tracking_app.ui.theme.upperTr
 import java.time.LocalDate
 
 /** Telefondan sonra başlatmanın "Telefonda uygulamayı aç" ipucuna döneceği süre (ms). */
@@ -62,6 +69,8 @@ fun HomeScreen(
     val restSeconds by viewModel.restSeconds.collectAsStateWithLifecycle()
     val rest by viewModel.rest.collectAsStateWithLifecycle()
     val listState = rememberScalingLazyListState()
+    var confirmFinish by remember { mutableStateOf(false) }
+    val activity = LocalContext.current as? Activity
 
     val current = workout
     val waiting = pending
@@ -74,7 +83,13 @@ fun HomeScreen(
             ) {
                 item {
                     ListHeader {
-                        Text(text = current.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = current.title.upperTr(),
+                            style = WatchType.header,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                 }
                 rest?.let { progress ->
@@ -97,16 +112,46 @@ fun HomeScreen(
                     )
                 }
                 item {
-                    Button(
-                        onClick = onOpenRestSettings,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.filledVariantButtonColors(),
-                    ) {
-                        Text(text = "Dinlenme: ${formatDuration(restSeconds)}")
+                    CardButton(onClick = onOpenRestSettings) {
+                        MutedLine(text = "Dinlenme süresi: ${formatDuration(restSeconds)}")
+                    }
+                }
+                item {
+                    CardButton(onClick = { confirmFinish = true }) {
+                        Text(
+                            text = "ANTRENMANI BİTİR",
+                            style = WatchType.action,
+                            color = MaterialTheme.colorScheme.primary,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                 }
             }
         }
+        AlertDialog(
+            confirmFinish,
+            onDismissRequest = { confirmFinish = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirmFinish = false
+                        // Antrenman bitti: olay kuyruğa yazılınca uygulama kapanır, saat kadrana döner.
+                        viewModel.finishWorkout(onFinished = { activity?.finish() })
+                    },
+                ) {
+                    Text("Bitir")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { confirmFinish = false }) {
+                    Text("Vazgeç")
+                }
+            },
+            title = { Text("Antrenmanı bitir?") },
+            text = { Text("Setler telefonda kalır.") },
+        )
     } else if (waiting != null) {
         ScreenScaffold { contentPadding ->
             PendingStartContent(
@@ -148,7 +193,7 @@ private fun StartContent(
     ) {
         item {
             ListHeader {
-                Text(text = "Antrenman başlat", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(text = "ANTRENMAN", style = WatchType.header, maxLines = 1)
             }
         }
         if (!reachable) {
@@ -162,37 +207,40 @@ private fun StartContent(
         }
         if (today != null) {
             item {
-                DayButton(
-                    day = today,
-                    label = "Bugün: ${today.name}",
-                    onClick = { onStartDay(today.dayId) },
-                    filled = true,
-                )
+                TodayButton(day = today, onClick = { onStartDay(today.dayId) })
             }
         }
         if (others.isNotEmpty()) {
             item {
                 ListHeader {
-                    Text(text = "Başka gün", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        text = "Başka gün",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
                 }
             }
             items(others.size) { index ->
                 val day = others[index]
-                DayButton(
-                    day = day,
-                    label = day.name,
-                    onClick = { onStartDay(day.dayId) },
-                    filled = false,
-                )
+                DayButton(day = day, onClick = { onStartDay(day.dayId) })
             }
         }
         item {
-            Button(
-                onClick = { onStartDay(null) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.filledVariantButtonColors(),
-            ) {
-                Text(text = "Boş antrenman")
+            // Program yoksa tek seçenek budur; o zaman ekranın dolu vurgu düğmesi olur.
+            if (today == null && others.isEmpty()) {
+                AccentCardButton(onClick = { onStartDay(null) }) {
+                    Text(
+                        text = "BOŞ ANTRENMAN",
+                        style = WatchType.action,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            } else {
+                CardButton(onClick = { onStartDay(null) }) {
+                    MutedLine(text = "+ Boş antrenman")
+                }
             }
         }
         if (program == null) {
@@ -209,23 +257,67 @@ private fun StartContent(
     }
 }
 
-/** Bir program günü düğmesi: ad ve hareket sayısı. */
+/** Bugünün günü: ekranın tek dolu vurgu düğmesi; "BUGÜN" etiketi, Oswald gün adı ve hareket sayısı. */
 @Composable
-private fun DayButton(day: WatchProgramDay, label: String, onClick: () -> Unit, filled: Boolean) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = if (filled) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun TodayButton(day: WatchProgramDay, onClick: () -> Unit) {
+    AccentCardButton(onClick = onClick) {
+        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "BUGÜN",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+            Text(
+                text = day.name.upperTr(),
+                style = WatchType.action,
+                color = MaterialTheme.colorScheme.onPrimary,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Text(
                 text = formatExerciseCount(day.exercises.size),
                 style = MaterialTheme.typography.labelSmall,
-                color = if (filled) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         }
     }
+}
+
+/** Başka bir program günü: çerçeveli kart, solda Oswald ad, sağda hareket sayısı. */
+@Composable
+private fun DayButton(day: WatchProgramDay, onClick: () -> Unit) {
+    CardButton(onClick = onClick) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = day.name,
+                style = WatchType.cardTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                text = formatExerciseCount(day.exercises.size),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 6.dp),
+            )
+        }
+    }
+}
+
+/** Kart içinde ortalanmış soluk tek satır (ikincil eylemler). */
+@Composable
+private fun MutedLine(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        maxLines = 1,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 /**
@@ -256,8 +348,8 @@ private fun PendingStartContent(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = pending.dayName ?: "Boş antrenman",
-                style = MaterialTheme.typography.titleSmall,
+                text = (pending.dayName ?: "Boş antrenman").upperTr(),
+                style = WatchType.header,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center,
                 maxLines = 2,
@@ -276,35 +368,31 @@ private fun PendingStartContent(
                     textAlign = TextAlign.Center,
                 )
             }
-            Button(
-                onClick = onCancel,
-                colors = ButtonDefaults.filledVariantButtonColors(),
-            ) {
-                Text(text = "İptal")
+            CardButton(onClick = onCancel, modifier = Modifier.padding(horizontal = 28.dp)) {
+                MutedLine(text = "İptal")
             }
         }
     }
 }
 
+/** Hareket listesi kartı: solda Oswald ad, sağda set halkası ("2/3", hedefe ulaşınca ✓). */
 @Composable
 private fun ExerciseButton(exercise: DisplayExercise, onClick: () -> Unit) {
-    val done = exercise.sets.size
-    val target = exercise.target?.sets
-    val reached = target != null && done >= target
-    val progress = (if (reached) "✓ " else "") + formatSetProgress(done, target)
-
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.filledTonalButtonColors(),
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = exercise.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    CardButton(onClick = onClick) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             Text(
-                text = progress,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = exercise.name,
+                style = WatchType.cardTitle,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
             )
+            SetProgressRing(done = exercise.sets.size, target = exercise.target?.sets)
         }
     }
 }

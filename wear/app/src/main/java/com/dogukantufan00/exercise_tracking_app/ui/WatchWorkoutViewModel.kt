@@ -55,6 +55,10 @@ class WatchWorkoutViewModel(
     private val edits = MutableStateFlow<Map<Long, WatchSetValue>>(emptyMap())
     val inputEdits: StateFlow<Map<Long, WatchSetValue>> = edits
 
+    /** En son set eklenen hareket; dinlenme ekranı "Sıradaki" ipucunu bundan çıkarır. */
+    private val lastExercise = MutableStateFlow<Long?>(null)
+    val lastExerciseId: StateFlow<Long?> = lastExercise
+
     /** Çalışan dinlenme sayacı (kontrolcüden); yoksa null. */
     val rest: StateFlow<RestProgress?> = restTimer.rest
 
@@ -84,6 +88,7 @@ class WatchWorkoutViewModel(
         val exercise = findExercise(exerciseId) ?: return
         val value = edits.value[exerciseId] ?: exercise.draft
         edits.update { it - exerciseId }
+        lastExercise.value = exerciseId
         viewModelScope.launch {
             repository.addSet(exerciseId, value.weightKg, value.reps)
         }
@@ -98,6 +103,17 @@ class WatchWorkoutViewModel(
     /** Antrenman başlatır ([programDayId] null → boş antrenman). */
     fun startWorkout(programDayId: Long?) {
         viewModelScope.launch { repository.startWorkout(programDayId) }
+    }
+
+    /** Antrenmanı bitirir: dinlenme sayacı durur, saat başlatma ekranına döner, telefona bitirme olayı gider. */
+    fun finishWorkout(onFinished: () -> Unit = {}) {
+        restTimer.skip()
+        edits.value = emptyMap()
+        // Olay kuyruğa yazıldıktan sonra [onFinished]: ekran (ve ViewModel) kapanırsa yazma yarıda kalmasın.
+        viewModelScope.launch {
+            repository.finishWorkout()
+            onFinished()
+        }
     }
 
     /** Bekleyen başlatmayı iptal eder. */

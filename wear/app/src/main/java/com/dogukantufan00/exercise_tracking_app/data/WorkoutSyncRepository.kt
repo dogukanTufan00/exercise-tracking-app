@@ -37,6 +37,12 @@ interface WorkoutSyncRepository {
      */
     suspend fun startWorkout(programDayId: Long?)
 
+    /**
+     * Etkin antrenmanı bitirir: FinishWorkoutEvent kuyruğa eklenir ve gönderilir; [workout] hemen null olur.
+     * Telefon antrenmanı etkin olmaktan çıkarır, kayıt ve setler kalır.
+     */
+    suspend fun finishWorkout()
+
     /** Bekleyen başlatmayı kuyruktan siler (telefon henüz uygulamadıysa antrenman oluşmaz). */
     suspend fun cancelPendingStart()
 }

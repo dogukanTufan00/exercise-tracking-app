@@ -129,6 +129,16 @@ data class StartWorkoutEvent(
     val programDayId: Long?,
 ) : WatchEvent()
 
+/** Saatten antrenman bitirildi: telefon antrenmanı etkin olmaktan çıkarır; kayıt ve setler kalır. */
+@Serializable
+@SerialName("finishWorkout")
+data class FinishWorkoutEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    val workoutId: Long,
+    override val createdAt: String,
+) : WatchEvent()
+
 @Serializable
 data class WatchApplied(val protocol: Int = WATCH_PROTOCOL_VERSION, val appliedEventIds: List<String>)
 

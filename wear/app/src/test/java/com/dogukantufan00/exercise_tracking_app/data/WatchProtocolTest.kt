@@ -136,6 +136,18 @@ class WatchProtocolTest {
     }
 
     @Test
+    fun finishWorkoutEventHasProtocolFieldNames() {
+        val event = FinishWorkoutEvent(eventId = "uuid-5", workoutId = 42, createdAt = "2026-11-22T19:30:00.000")
+
+        val encoded = ProtocolJson.encodeToString(WatchEvent.serializer(), event)
+        val obj = Json.parseToJsonElement(encoded).jsonObject
+
+        assertEquals("finishWorkout", obj.getValue("type").toString().trim('"'))
+        assertEquals(setOf("type", "protocol", "eventId", "createdAt", "workoutId"), obj.keys)
+        assertEquals(event, ProtocolJson.decodeFromString(WatchEvent.serializer(), encoded))
+    }
+
+    @Test
     fun programIsReadFromPhoneJson() {
         val json = """
             {
