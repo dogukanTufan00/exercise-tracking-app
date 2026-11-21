@@ -19,6 +19,8 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
   bildirim izni istenir). Telefonda hareket adı değiştirme, birleştirme, silme ve program düzenleme saate kendiliğinden yansır.
 - Antrenmanı saatten bitirme: hareket listesinin sonundaki "Antrenmanı bitir" (onaylı) saati başlatma ekranına
   döndürür, dinlenme sayacını ve arka plan servisini kapatır; antrenman telefonda Geçmiş'te olduğu gibi kalır.
+- Saat, telefon uygulaması kapalıyken de çalışır: saatten başlatma, set ekleme/silme ve bitirme telefonda arka
+  planda (ekransız) işlenir; telefon uygulamasını açmak gerekmez.
 
 ### Düzeltildi
 - Saatten başlatılan antrenman, telefonda Geçmiş ekranı yeniden açılana kadar görünmüyordu (#25).

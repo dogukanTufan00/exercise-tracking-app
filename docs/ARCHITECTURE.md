@@ -492,6 +492,17 @@ Kurallar:
   der. Dart `drainEvents()` ile kuyruğu okur, işler, `ackEvents(ids)` ile siler. Uygulama açılışında da kuyruk boşaltılır.
   Telefon cepte ve ekran kilitliyken Flutter süreci genelde canlıdır; değilse olaylar bir sonraki açılışta işlenir
   (saat bu arada kendi iyimser durumunu gösterir).
+- **Uygulama kapalıyken arka planda işleme (2026-11-22, kullanıcı kararı):** olay kuyruğa yazılınca uygulamanın
+  Flutter'ı dinlemiyorsa (`WearEventNotifier.sink == null`) `WearBackgroundRunner` ekransız bir `FlutterEngine`
+  başlatır ve `main.dart`'taki `@pragma('vm:entry-point') wearBackgroundMain`'i çalıştırır. Bu, aynı
+  `WatchSyncService` ile `processPendingEvents()` yapar (anlık durum ve `/events/applied` yayınlanır),
+  veritabanını kapatır ve `backgroundDone` der; motor kapatılır (en geç 30 sn). İş mantığı tek yerde (Dart) kalır;
+  saat uygulaması değişmez. Motor çalışırken yeni olay gelirse bitince bir tur daha çalışır.
+  Çakışma önlemi: motor çalışırken uygulamanın `drainEvents` çağrısı boş döner, motor bitince kuyruk yeniden
+  bildirilir; `PrefsWatchSyncStore` her okumada `reload()` ile diski okur (iki motorun önbelleği ayrışmasın).
+  Köprü kodu `WearBridge.kt`'tedir (`MainActivity` ve ekransız motor ortak kullanır). Android pil kısıtları
+  servisi geciktirirse olay yine uygulama açılınca işlenir; saatin "Telefonda uygulamayı aç" ekranı bu durum için
+  yedek olarak kalır.
 - `WearChannel` (Dart, abstract, `lib/data/watch/wear_channel.dart`): gerçeği `MethodChannelWearChannel`, testlerde
   `FakeWearChannel`. `BackupFileService` deseninde olduğu gibi mantığın tamamı `WatchSyncService`'tedir ve test edilir.
 - `WatchSyncService` (`lib/data/watch/watch_sync_service.dart`): `setActiveWorkout`, `workoutChanged(workoutId)`,

@@ -18,6 +18,7 @@ import 'data/watch/watch_aware_program_repository.dart';
 import 'data/watch/watch_aware_workout_repository.dart';
 import 'data/watch/watch_sync_service.dart';
 import 'data/watch/watch_sync_store.dart';
+import 'data/watch/wear_background.dart';
 import 'data/watch/wear_channel.dart';
 import 'ui/core/formatters.dart';
 import 'ui/core/theme/theme_controller.dart';
@@ -67,6 +68,29 @@ Future<void> main() async {
       backupFileService: DeviceBackupFileService(),
       watchSyncService: watchSyncService,
     ),
+  );
+}
+
+/// Telefon uygulaması kapalıyken saat olaylarını işleyen ekransız giriş noktası (§15.5).
+/// Android'deki `WearBackgroundRunner` bu adı çağırır; adı değişirse orası da değişmelidir.
+@pragma('vm:entry-point')
+Future<void> wearBackgroundMain() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeDateFormatting('tr');
+  final databaseService = DatabaseService();
+  final service = WatchSyncService(
+    repository: SqliteWorkoutRepository(databaseService),
+    programRepository: SqliteProgramRepository(databaseService),
+    channel: MethodChannelWearChannel(),
+    store: PrefsWatchSyncStore(),
+    fallbackTitle: formatWorkoutDate,
+  );
+  await runWearBackground(
+    service: service,
+    onDone: () async {
+      await databaseService.close();
+      await notifyWearBackgroundDone();
+    },
   );
 }
 

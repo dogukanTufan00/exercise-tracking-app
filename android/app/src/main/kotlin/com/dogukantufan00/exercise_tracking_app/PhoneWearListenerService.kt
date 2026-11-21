@@ -5,7 +5,8 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 
 /**
- * Saatten gelen mesajları (yol `/event`) alır, yerel kuyruğa yazar ve Flutter'a haber verir.
+ * Saatten gelen mesajları (yol `/event`) alır, yerel kuyruğa yazar ve Flutter'a haber verir; uygulama açık
+ * değilse [WearBackgroundRunner] olayları ekransız bir Flutter motorunda işler.
  *
  * Uygulama kapalıyken de çalışır: Data Layer, manifest'teki intent-filter ile bu servisi başlatır.
  */
@@ -21,6 +22,8 @@ class PhoneWearListenerService : WearableListenerService() {
         if (messageEvent.path != EVENT_PATH) return
         WearEventQueue.add(String(messageEvent.data, Charsets.UTF_8))
         WearEventNotifier.notifyAvailable()
+        // Uygulama dinlemiyorsa olay ekransız Flutter motorunda işlenir (§15.5).
+        WearBackgroundRunner.onEventQueued(this)
     }
 
     private companion object {

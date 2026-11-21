@@ -25,6 +25,8 @@ class PrefsWatchSyncStore implements WatchSyncStore {
   @override
   Future<int?> getActiveWorkoutId() async {
     final prefs = await SharedPreferences.getInstance();
+    // Saat olaylarını arka planda işleyen ekransız motor (§15.5) da yazar; önbellek değil disk okunur.
+    await prefs.reload();
     return prefs.getInt(_activeKey);
   }
 
@@ -41,6 +43,7 @@ class PrefsWatchSyncStore implements WatchSyncStore {
   @override
   Future<List<String>> getProcessedEventIds() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     return prefs.getStringList(_processedKey) ?? const <String>[];
   }
 
