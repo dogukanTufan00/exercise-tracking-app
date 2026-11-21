@@ -12,6 +12,14 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
   görünür; saatten ağırlık/tekrar girip set eklenir ve silinir; saatte dinlenme sayacı ve titreşim. Telefon cepteyken ya da
   bağlantı yokken saatin setleri sırada bekler, sonra telefona bir kez yazılır.
 - Saat, telefonda seçili temanın renklerini kullanır (açık mavi temada saat koyu zemin kullanır) (#24).
+- Saat uygulaması, faz 2 (ARCHITECTURE §15.8) (#25): saatten antrenman başlatma (bugünün program günü, başka bir gün
+  ya da boş antrenman); telefon uygulaması kapalıysa saat "Telefonda uygulamayı aç" diye bekler ve başlatma iptal
+  edilebilir; bugünün gününü ve Başla/Devam et düğmesini gösteren Tile; antrenman sürerken kadranda (Now Bar) görünen
+  Ongoing Activity; ekran kapalıyken de bitişte titreyen dinlenme sayacı (ilk antrenmanda bir kez fiziksel aktivite ve
+  bildirim izni istenir). Telefonda hareket adı değiştirme, birleştirme, silme ve program düzenleme saate kendiliğinden yansır.
+
+### Düzeltildi
+- Saatten başlatılan antrenman, telefonda Geçmiş ekranı yeniden açılana kadar görünmüyordu (#25).
 
 ### Değişti
 - Yapı numarası 7'den 1002'ye atladı (saat uygulamasıyla çakışma; ayrıntı ARCHITECTURE §15).
