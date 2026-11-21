@@ -1,18 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/program_repository.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/watch/watch_sync_service.dart';
 import '../../domain/week_grouping.dart';
 
 /// Geçmiş ekranının durumu: antrenman özetleri, yükleme ve hata bilgisi.
 ///
 /// Antrenman başlatma sayfası için etkin programı da okur ve programın bir gününden antrenman başlatır.
 class HistoryViewModel extends ChangeNotifier {
-  HistoryViewModel(this._repository, this._programRepository);
+  HistoryViewModel(this._repository, this._programRepository, {this.watchSync});
 
   final WorkoutRepository _repository;
   final ProgramRepository _programRepository;
+
+  /// Verilirse silinen antrenman saatte açıksa saat boş duruma geçer (bkz. ARCHITECTURE §15.3).
+  final WatchSyncService? watchSync;
 
   List<WorkoutSummary> _workouts = const [];
   bool _isLoading = true;
@@ -96,6 +102,7 @@ class HistoryViewModel extends ChangeNotifier {
   Future<void> deleteWorkout(int id) async {
     try {
       await _repository.deleteWorkout(id);
+      unawaited(watchSync?.workoutChanged(id));
       if (_disposed) return;
       _workouts = [
         for (final summary in _workouts)

@@ -1,8 +1,11 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/watch/watch_sync_service.dart';
 import 'package:exercise_tracking_app/ui/history/history_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/fake_program_repository.dart';
+import '../../fakes/fake_watch_sync_store.dart';
+import '../../fakes/fake_wear_channel.dart';
 import '../../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -158,5 +161,28 @@ void main() {
       expect(viewModel.errorMessage, 'Antrenman başlatılamadı.');
       expect(await repository.getWorkoutSummaries(), isEmpty);
     });
+  });
+
+  test('saatte açık antrenman silinince saat boş duruma geçer', () async {
+    final channel = FakeWearChannel();
+    final store = FakeWatchSyncStore();
+    final watchSync = WatchSyncService(
+      repository: repository,
+      channel: channel,
+      store: store,
+      fallbackTitle: (_) => 'Antrenman',
+    );
+    final workout = await repository.createWorkout(title: 'Test');
+    await watchSync.setActiveWorkout(workout.id);
+    final withWatch = HistoryViewModel(repository, programs, watchSync: watchSync);
+    await withWatch.load();
+
+    await withWatch.deleteWorkout(workout.id);
+    await pumpEventQueue();
+
+    expect(store.activeWorkoutId, isNull);
+    expect(channel.clearCount, 1);
+    withWatch.dispose();
+    await watchSync.dispose();
   });
 }
