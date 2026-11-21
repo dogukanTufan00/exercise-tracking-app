@@ -133,3 +133,7 @@ await tester.pumpAndSettle();
 | 13 | AC | [Saat uygulamasının veri katmanı (#24)](wave13-ac-watch-data.md) |
 | 13 | AD | [Saat uygulamasının ekranları (#24)](wave13-ad-watch-ui.md) |
 | 14 | AE | [Saat telefonun temasını izlesin (#24)](wave14-ae-watch-theme.md) |
+| 15 | BA | [Telefon tarafı, Faz 2 (#25)](wave15-ba-phone-phase2.md) |
+| 15 | BC | [Saatin veri katmanı, Faz 2 (#25)](wave15-bc-watch-data-phase2.md) |
+| 15 | BD | [Saat ekranları, Faz 2 (#25)](wave15-bd-watch-ui-phase2.md) |
+| 15 | BE | [Antrenman servisi, sayaç ve Tile (#25)](wave15-be-watch-session-tile.md) |

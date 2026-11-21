@@ -84,6 +84,14 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.3.0")
 
     implementation("com.google.android.gms:play-services-wearable:19.0.0")
+
+    // Faz 2 (§15.8): Tile, Ongoing Activity.
+    implementation("androidx.wear.tiles:tiles:1.5.0")
+    implementation("androidx.wear.protolayout:protolayout:1.3.0")
+    implementation("androidx.wear.protolayout:protolayout-expression:1.3.0")
+    implementation("androidx.wear.protolayout:protolayout-material3:1.3.0")
+    implementation("androidx.wear:wear-ongoing:1.0.0")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")

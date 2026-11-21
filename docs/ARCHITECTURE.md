@@ -564,7 +564,10 @@ kaldırılır. `WatchSyncService` döngü olmasın diye sarılmamış repository
 - Telefon: gün varsa `startWorkoutFromDay(dayId, startedAt: createdAt)`, `null` ise `createWorkout(startedAt: createdAt)`;
   yeni antrenman etkin olur ve yayınlanır. Gün silinmişse ya da olay 12 saatten eskiyse yok sayılır.
 - **Telefon uygulaması kapalıysa olay bekler** (kullanıcı kararı): telefon uygulaması açılınca işlenir. Saat bu arada
-  "Telefonda uygulamayı aç" bekleme ekranını gösterir; bekleyen başlatma iptal edilebilir. Başlatma olayı onaylanınca
+  "Telefonda uygulamayı aç" bekleme ekranını gösterir; bekleyen başlatma iptal edilebilir.
+- **İşlenen olaylar her zaman yayınlanır:** telefon her olay işleme turundan sonra DataItem `/events/applied`'e
+  `{"protocol": 1, "appliedEventIds": [...]}` (son 50) yazar. Böylece yok sayılan bir başlatma (etkin antrenman
+  oluşmadığı için anlık durum yokken) de saatin kuyruğundan düşer. Başlatma olayı onaylanınca
   (`appliedEventIds`) saat yeni antrenmanın hareket listesine geçer.
 
 **4. Tile** (`androidx.wear.tiles` + `protolayout`):

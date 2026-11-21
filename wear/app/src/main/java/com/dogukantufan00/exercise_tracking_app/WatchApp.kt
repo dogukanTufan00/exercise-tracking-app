@@ -18,6 +18,10 @@ class WatchApp : Application() {
     lateinit var syncRepository: WorkoutSyncRepository
         private set
 
+    /** Dinlenme sayacı; ekrandan bağımsız (bkz. §15.8). Ajan BE oluşturur. */
+    lateinit var restTimer: com.dogukantufan00.exercise_tracking_app.session.RestTimerController
+        private set
+
     /** Telefondaki seçili tema (bkz. §15.7). */
     lateinit var themeSource: ThemeSource
         private set

@@ -15,6 +15,14 @@ const String watchSnapshotPath = '/workout/active';
 const String watchThemePath = '/settings/theme';
 const String watchThemeKey = 'themeId';
 
+/// Etkin programın yayınlandığı DataItem yolu; JSON, DataMap'te `json` anahtarındadır (§15.8).
+const String watchProgramPath = '/program/active';
+
+/// İşlenmiş olay id'lerinin (son en fazla [maxAppliedEventIds]) her zaman yayınlandığı DataItem yolu;
+/// JSON `{"protocol": 1, "appliedEventIds": [...]}` DataMap'te `json` anahtarındadır (§15.8). Etkin antrenman
+/// olmasa da yazılır; saat bekleyen olaylarını hem bununla hem anlık durumdakiyle temizler.
+const String watchAppliedPath = '/events/applied';
+
 /// Saatin olay gönderdiği mesaj yolu.
 const String watchEventPath = '/event';
 
@@ -204,7 +212,6 @@ sealed class WatchEvent {
   const WatchEvent({
     this.protocol = watchProtocolVersion,
     required this.eventId,
-    required this.workoutId,
     required this.createdAt,
   });
 
@@ -213,14 +220,13 @@ sealed class WatchEvent {
     try {
       final protocol = json['protocol'] as int;
       final eventId = json['eventId'] as String;
-      final workoutId = json['workoutId'] as int;
       final createdAt = DateTime.parse(json['createdAt'] as String);
       switch (json['type']) {
         case AddSetEvent.type:
           return AddSetEvent(
             protocol: protocol,
             eventId: eventId,
-            workoutId: workoutId,
+            workoutId: json['workoutId'] as int,
             createdAt: createdAt,
             workoutExerciseId: json['workoutExerciseId'] as int,
             weightKg: (json['weightKg'] as num).toDouble(),
@@ -230,9 +236,16 @@ sealed class WatchEvent {
           return DeleteSetEvent(
             protocol: protocol,
             eventId: eventId,
-            workoutId: workoutId,
+            workoutId: json['workoutId'] as int,
             createdAt: createdAt,
             setId: json['setId'] as int,
+          );
+        case StartWorkoutEvent.type:
+          return StartWorkoutEvent(
+            protocol: protocol,
+            eventId: eventId,
+            createdAt: createdAt,
+            programDayId: json['programDayId'] as int?,
           );
         default:
           throw FormatException('Bilinmeyen olay türü: ${json['type']}');
@@ -244,7 +257,6 @@ sealed class WatchEvent {
 
   final int protocol;
   final String eventId;
-  final int workoutId;
   final DateTime createdAt;
 
   Map<String, Object?> toJson();
@@ -253,7 +265,6 @@ sealed class WatchEvent {
         'protocol': protocol,
         'eventId': eventId,
         'type': type,
-        'workoutId': workoutId,
         'createdAt': createdAt.toIso8601String(),
       };
 }
@@ -263,7 +274,7 @@ final class AddSetEvent extends WatchEvent {
   const AddSetEvent({
     super.protocol,
     required super.eventId,
-    required super.workoutId,
+    required this.workoutId,
     required super.createdAt,
     required this.workoutExerciseId,
     required this.weightKg,
@@ -272,6 +283,7 @@ final class AddSetEvent extends WatchEvent {
 
   static const String type = 'addSet';
 
+  final int workoutId;
   final int workoutExerciseId;
   final double weightKg;
   final int reps;
@@ -279,6 +291,7 @@ final class AddSetEvent extends WatchEvent {
   @override
   Map<String, Object?> toJson() => {
         ..._baseJson(type),
+        'workoutId': workoutId,
         'workoutExerciseId': workoutExerciseId,
         'weightKg': weightKg,
         'reps': reps,
@@ -290,15 +303,97 @@ final class DeleteSetEvent extends WatchEvent {
   const DeleteSetEvent({
     super.protocol,
     required super.eventId,
-    required super.workoutId,
+    required this.workoutId,
     required super.createdAt,
     required this.setId,
   });
 
   static const String type = 'deleteSet';
 
+  final int workoutId;
   final int setId;
 
   @override
-  Map<String, Object?> toJson() => {..._baseJson(type), 'setId': setId};
+  Map<String, Object?> toJson() =>
+      {..._baseJson(type), 'workoutId': workoutId, 'setId': setId};
+}
+
+/// Saatten antrenman başlatıldı (§15.8). [programDayId] `null` ise boş antrenman.
+final class StartWorkoutEvent extends WatchEvent {
+  const StartWorkoutEvent({
+    super.protocol,
+    required super.eventId,
+    required super.createdAt,
+    required this.programDayId,
+  });
+
+  static const String type = 'startWorkout';
+
+  final int? programDayId;
+
+  @override
+  Map<String, Object?> toJson() => {..._baseJson(type), 'programDayId': programDayId};
+}
+
+/// Etkin programın bir günü (saatte gösterilen özet).
+class WatchProgramDay {
+  const WatchProgramDay({
+    required this.dayId,
+    required this.name,
+    required this.weekday,
+    required this.exercises,
+  });
+
+  factory WatchProgramDay.fromJson(Map<String, Object?> json) => WatchProgramDay(
+        dayId: json['dayId'] as int,
+        name: json['name'] as String,
+        weekday: json['weekday'] as int?,
+        exercises: [for (final name in json['exercises'] as List<Object?>) name as String],
+      );
+
+  final int dayId;
+  final String name;
+
+  /// 1 = Pazartesi … 7 = Pazar; `null` = güne bağlı değil.
+  final int? weekday;
+
+  /// Hareket adları, sırasıyla.
+  final List<String> exercises;
+
+  Map<String, Object?> toJson() =>
+      {'dayId': dayId, 'name': name, 'weekday': weekday, 'exercises': exercises};
+}
+
+/// Telefonun `/program/active`'e yayınladığı etkin program (§15.8).
+class WatchProgram {
+  const WatchProgram({
+    this.protocol = watchProtocolVersion,
+    required this.programId,
+    required this.name,
+    required this.days,
+  });
+
+  factory WatchProgram.fromJson(Map<String, Object?> json) => WatchProgram(
+        protocol: json['protocol'] as int,
+        programId: json['programId'] as int,
+        name: json['name'] as String,
+        days: [
+          for (final item in json['days'] as List<Object?>)
+            WatchProgramDay.fromJson(item as Map<String, Object?>),
+        ],
+      );
+
+  final int protocol;
+  final int programId;
+  final String name;
+
+  /// `position` sırasıyla.
+  final List<WatchProgramDay> days;
+
+  Map<String, Object?> toJson() => {
+        'protocol': protocol,
+        'programId': programId,
+        'name': name,
+        'days': [for (final day in days) day.toJson()],
+      };
 }

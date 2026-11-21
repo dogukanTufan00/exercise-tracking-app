@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../models/models.dart';
+import '../repositories/program_repository.dart';
 import '../repositories/workout_repository.dart';
 import 'watch_protocol.dart';
 import 'watch_snapshot_builder.dart';
@@ -20,6 +21,7 @@ import 'wear_channel.dart';
 class WatchSyncService {
   WatchSyncService({
     required this.repository,
+    required this.programRepository,
     required this.channel,
     required this.store,
     required this.fallbackTitle,
@@ -27,6 +29,9 @@ class WatchSyncService {
   }) : clock = clock ?? DateTime.now;
 
   final WorkoutRepository repository;
+
+  /// Etkin programı saate yayınlamak ve saatten gün başlatmak için (§15.8). Sarılmamış (watch-aware olmayan) örnek.
+  final ProgramRepository programRepository;
   final WearChannel channel;
   final WatchSyncStore store;
 
@@ -92,6 +97,18 @@ class WatchSyncService {
     final next = _queue.then((_) => _processBatch());
     _queue = next;
     return next;
+  }
+
+  /// Etkin antrenmanı (varsa) koşulsuz yeniden yayınlar; hangi antrenmanın değiştiği bilinmeyen değişikliklerden
+  /// sonra repository sarmalayıcısı çağırır (§15.8 madde 2). Hata fırlatmaz.
+  Future<void> activeWorkoutChanged() async {
+    throw UnimplementedError();
+  }
+
+  /// Program verisi değişince çağrılır: etkin programı `/program/active`'e yeniden yayınlar ya da
+  /// etkin program yoksa siler (§15.8). `start()` de bir kez çağırır. Hata fırlatmaz.
+  Future<void> programChanged() async {
+    throw UnimplementedError();
   }
 
   /// Seçili temayı saate yayınlar (bkz. docs/ARCHITECTURE.md §15.7). Hata fırlatmaz.

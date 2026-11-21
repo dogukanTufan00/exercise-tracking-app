@@ -11,6 +11,15 @@ abstract interface class WearChannel {
   /// `/workout/active` DataItem'ını siler (saat boş durumu gösterir).
   Future<void> clearSnapshot();
 
+  /// Etkin program JSON'unu `/program/active` DataItem'ına yazar (§15.8).
+  Future<void> publishProgram(String json);
+
+  /// `/program/active` DataItem'ını siler (etkin program yok).
+  Future<void> clearProgram();
+
+  /// İşlenmiş olay id'leri JSON'unu `/events/applied` DataItem'ına yazar (§15.8).
+  Future<void> publishApplied(String json);
+
   /// Seçili temanın adını (`AppThemeId.name`) `/settings/theme` DataItem'ına yazar.
   Future<void> publishTheme(String themeId);
 
@@ -29,6 +38,7 @@ abstract interface class WearChannel {
 /// Kotlin tarafı (`android/app/src/main/kotlin/.../MainActivity.kt`) şu adları uygular:
 /// - MethodChannel `exercise_tracker/wear`:
 ///   `publishSnapshot` (argüman: String), `clearSnapshot`, `publishTheme` (argüman: String),
+///   `publishProgram` (argüman: String), `clearProgram`, `publishApplied` (argüman: String),
 ///   `drainEvents` (döner: `List<String>`),
 ///   `ackEvents` (argüman: `List<String>`)
 /// - EventChannel `exercise_tracker/wear/events`: kuyruğa olay eklenince `null` yayar.
@@ -41,6 +51,15 @@ class MethodChannelWearChannel implements WearChannel {
 
   @override
   Future<void> clearSnapshot() => _call('clearSnapshot');
+
+  @override
+  Future<void> publishProgram(String json) => _call('publishProgram', json);
+
+  @override
+  Future<void> clearProgram() => _call('clearProgram');
+
+  @override
+  Future<void> publishApplied(String json) => _call('publishApplied', json);
 
   @override
   Future<void> publishTheme(String themeId) => _call('publishTheme', themeId);

@@ -21,4 +21,25 @@ interface WorkoutSyncRepository {
 
     /** Telefonun onayladığı bir seti siler. Bekleyen sette çağrılmaz. */
     suspend fun deleteSet(setId: Long)
+
+    /** Telefonun yayınladığı etkin program; yoksa null (§15.8). */
+    val program: StateFlow<WatchProgram?>
+
+    /**
+     * Telefona gönderilmiş ama henüz uygulanmamış antrenman başlatma isteği; yoksa null.
+     * Telefon olayı uyguladığında (appliedEventIds) ya da [cancelPendingStart] ile null olur.
+     */
+    val pendingStart: StateFlow<PendingStart?>
+
+    /**
+     * Antrenman başlatır ([programDayId] null → boş antrenman): StartWorkoutEvent kuyruğa eklenir ve gönderilir.
+     * Zaten bekleyen bir başlatma varsa önce o iptal edilir (en fazla bir bekleyen başlatma).
+     */
+    suspend fun startWorkout(programDayId: Long?)
+
+    /** Bekleyen başlatmayı kuyruktan siler (telefon henüz uygulamadıysa antrenman oluşmaz). */
+    suspend fun cancelPendingStart()
 }
+
+/** Bekleyen başlatma: hangi gün (null = boş antrenman) ve ekranda gösterilecek ad. */
+data class PendingStart(val eventId: String, val programDayId: Long?, val dayName: String?)

@@ -24,6 +24,15 @@ const val SNAPSHOT_JSON_KEY = "json"
 const val THEME_PATH = "/settings/theme"
 const val THEME_KEY = "themeId"
 
+/** Etkin programın DataItem yolu; JSON, DataMap'te [SNAPSHOT_JSON_KEY] ("json") anahtarındadır (§15.8). */
+const val PROGRAM_PATH = "/program/active"
+
+/**
+ * İşlenmiş olay id'lerinin her zaman yayınlandığı DataItem yolu (§15.8): JSON [WatchApplied], "json" anahtarında.
+ * Etkin antrenman olmasa da yazılır; bekleyen olaylar hem bununla hem anlık durumdakiyle temizlenir.
+ */
+const val APPLIED_PATH = "/events/applied"
+
 /** Saatin olay gönderdiği mesaj yolu. */
 const val EVENT_PATH = "/event"
 
@@ -81,7 +90,6 @@ data class WatchSnapshot(
 sealed class WatchEvent {
     abstract val protocol: Int
     abstract val eventId: String
-    abstract val workoutId: Long
 
     /** Saat dilimsiz ISO 8601 yerel saat (ör. LocalDateTime.now().toString()). */
     abstract val createdAt: String
@@ -93,7 +101,7 @@ sealed class WatchEvent {
 data class AddSetEvent(
     override val protocol: Int = WATCH_PROTOCOL_VERSION,
     override val eventId: String,
-    override val workoutId: Long,
+    val workoutId: Long,
     override val createdAt: String,
     val workoutExerciseId: Long,
     val weightKg: Double,
@@ -106,7 +114,40 @@ data class AddSetEvent(
 data class DeleteSetEvent(
     override val protocol: Int = WATCH_PROTOCOL_VERSION,
     override val eventId: String,
-    override val workoutId: Long,
+    val workoutId: Long,
     override val createdAt: String,
     val setId: Long,
 ) : WatchEvent()
+
+/** Saatten antrenman başlatıldı (§15.8); [programDayId] null ise boş antrenman. Olayda workoutId yoktur. */
+@Serializable
+@SerialName("startWorkout")
+data class StartWorkoutEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    override val createdAt: String,
+    val programDayId: Long?,
+) : WatchEvent()
+
+@Serializable
+data class WatchApplied(val protocol: Int = WATCH_PROTOCOL_VERSION, val appliedEventIds: List<String>)
+
+/** Etkin programın bir günü. [weekday]: 1 = Pazartesi … 7 = Pazar, null = güne bağlı değil. */
+@Serializable
+data class WatchProgramDay(
+    val dayId: Long,
+    val name: String,
+    val weekday: Int?,
+    /** Hareket adları, sırasıyla. */
+    val exercises: List<String>,
+)
+
+/** Telefonun `/program/active`'e yayınladığı etkin program. */
+@Serializable
+data class WatchProgram(
+    val protocol: Int = WATCH_PROTOCOL_VERSION,
+    val programId: Long,
+    val name: String,
+    /** position sırasıyla. */
+    val days: List<WatchProgramDay>,
+)
