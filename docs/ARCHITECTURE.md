@@ -532,3 +532,49 @@ Saat, telefonda seçili temayı kullanır (kullanıcı kararı, 2026-11-22).
   `outline`/`outlineVariant` = outline, `primary`/`onPrimary` aynen, `primaryContainer` = primary'nin %30'u background
   üzerine karıştırılmış, `onPrimaryContainer` = onSurface. Ekranlar renkleri yalnızca `MaterialTheme.colorScheme`'den okur.
 
+
+### 15.8 Faz 2: saatten başlatma, Tile, arka planda sayaç (#25)
+
+Kararlar (2026-11-22):
+
+**1. Program saatte.** Telefon etkin programı DataItem `/program/active` olarak yayınlar (etkin program yoksa siler):
+
+```json
+{ "protocol": 1, "programId": 3, "name": "PPL",
+  "days": [ { "dayId": 11, "name": "Push A", "weekday": 1, "exercises": ["Bench Press", "Incline DB Press"] } ] }
+```
+
+`weekday` 1 = Pazartesi, `null` = güne bağlı değil. "Bugünün günü" saatte telefonla aynı kuralla hesaplanır
+(`suggestedDay`: `weekday`'i bugün olan ilk gün; yoksa öneri yok). Gece yarısı geçince saat kendisi günceller.
+
+**2. Değişiklikleri kaçırmamak için repository sarmalayıcıları.** `WatchAwareWorkoutRepository` ve
+`WatchAwareProgramRepository` gerçek repository'leri sarar; her değiştirici çağrıdan sonra `WatchSyncService`'e haber
+verir (antrenman → anlık durum, program → `/program/active`). Böylece Geçmiş'ten silme, hareket adı değiştirme,
+birleştirme, yedekten geri yükleme ve program düzenleme saate kendiliğinden yansır; ViewModel'lerdeki elle çağrılar
+kaldırılır. `WatchSyncService` döngü olmasın diye sarılmamış repository'leri kullanır.
+
+**3. Saatten başlatma: yeni olay `startWorkout`.**
+
+```json
+{ "protocol": 1, "eventId": "uuid", "type": "startWorkout", "programDayId": 11, "createdAt": "2026-11-22T18:30:00" }
+```
+
+- `programDayId` `null` → boş antrenman. Olayda `workoutId` yoktur; `workoutId` artık yalnızca `addSet`/`deleteSet`'te
+  bulunur (protokol 1 içinde geriye uyumlu: eski olay türleri aynı kalır).
+- Telefon: gün varsa `startWorkoutFromDay(dayId, startedAt: createdAt)`, `null` ise `createWorkout(startedAt: createdAt)`;
+  yeni antrenman etkin olur ve yayınlanır. Gün silinmişse ya da olay 12 saatten eskiyse yok sayılır.
+- **Telefon uygulaması kapalıysa olay bekler** (kullanıcı kararı): telefon uygulaması açılınca işlenir. Saat bu arada
+  "Telefonda uygulamayı aç" bekleme ekranını gösterir; bekleyen başlatma iptal edilebilir. Başlatma olayı onaylanınca
+  (`appliedEventIds`) saat yeni antrenmanın hareket listesine geçer.
+
+**4. Tile** (`androidx.wear.tiles` + `protolayout`):
+- Antrenman sürüyorsa: başlık + "N set" + **Devam et**.
+- Değilse ve bugüne planlı gün varsa: "Bugün: Push A · 5 hareket" + **Başla** (doğrudan başlatır).
+- Bugüne gün yoksa ya da program yoksa: **Antrenman başlat** (uygulamada gün seçimi / boş antrenman açılır).
+- Tile verisi saatteki son anlık durum ve programdan gelir; veri değişince Tile güncellenmesi istenir.
+
+**5. Arka planda güvenilir sayaç: antrenman servisi.** Saatte etkin antrenman varken `WorkoutSessionService`
+(foreground service, tür `health`) çalışır; **Ongoing Activity** ile kadranda ve son uygulamalarda simge gösterir.
+Dinlenme sayacı bu servise taşınır; ekran kapalıyken de süre bitince titrer. Android 14 `health` türü için ilk
+antrenmanda bir kez **Fiziksel aktivite** (`ACTIVITY_RECOGNITION`) ve **bildirim** (`POST_NOTIFICATIONS`) izni istenir
+(kullanıcı kararı). İzin verilmezse sayaç Faz 1'deki gibi ekran açıkken çalışır.
