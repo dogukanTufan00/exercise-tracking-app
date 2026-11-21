@@ -10,7 +10,9 @@ import android.view.WindowManager
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,11 +22,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
-import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
-import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -42,7 +42,6 @@ fun RestScreen(
 ) {
     val context = LocalContext.current
     val rest by viewModel.rest.collectAsStateWithLifecycle()
-    val listState = rememberScalingLazyListState()
 
     KeepScreenOn()
 
@@ -58,39 +57,34 @@ fun RestScreen(
         onDispose { viewModel.skipRest() }
     }
 
-    ScreenScaffold(scrollState = listState) { contentPadding ->
-        ScalingLazyColumn(
-            state = listState,
-            contentPadding = contentPadding,
+    // Kaydırılabilir liste yerine sabit düzen: yuvarlak ekranda ölçeklenip kaymasın.
+    ScreenScaffold {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
         ) {
-            item {
-                Box(
-                    modifier = Modifier.size(150.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator(
-                        progress = { rest?.remainingFraction ?: 0f },
-                        modifier = Modifier.size(150.dp),
-                    )
-                    Text(
-                        text = formatDuration(rest?.remainingSeconds ?: 0),
-                        style = MaterialTheme.typography.numeralLarge,
-                        color = MaterialTheme.colorScheme.onBackground,
-                    )
-                }
-            }
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { viewModel.adjustRest(-15) }) {
+            CircularProgressIndicator(
+                progress = { rest?.remainingFraction ?: 0f },
+                modifier = Modifier.fillMaxSize().padding(4.dp),
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = formatDuration(rest?.remainingSeconds ?: 0),
+                    style = MaterialTheme.typography.numeralMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    CompactButton(onClick = { viewModel.adjustRest(-15) }) {
                         Text("−15 sn")
                     }
-                    Button(onClick = { viewModel.adjustRest(15) }) {
+                    CompactButton(onClick = { viewModel.adjustRest(15) }) {
                         Text("+15 sn")
                     }
                 }
-            }
-            item {
-                Button(
+                CompactButton(
                     onClick = {
                         viewModel.skipRest()
                         onDone()

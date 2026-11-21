@@ -2,6 +2,7 @@ package com.dogukantufan00.exercise_tracking_app.data
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
 import com.dogukantufan00.exercise_tracking_app.domain.mergeOptimistic
 import com.google.android.gms.wearable.CapabilityClient
@@ -171,7 +172,7 @@ class PhoneSyncRepository(
     private suspend fun fetchPhoneNodes(): Set<Node> = withContext(Dispatchers.IO) {
         runCatching {
             capabilityClient.getCapability(PHONE_CAPABILITY, CapabilityClient.FILTER_REACHABLE).await().nodes
-        }.getOrDefault(emptySet())
+        }.onFailure { Log.w(TAG, "Telefon yeteneği sorgulanamadı", it) }.getOrDefault(emptySet())
     }
 
     /** Bekleyen olayları telefona gönderir. Aynı anda yalnızca bir gönderim çalışır. */
@@ -180,6 +181,7 @@ class PhoneSyncRepository(
             val pending = store.events.first()
             if (pending.isEmpty()) return
             val nodes = fetchPhoneNodes()
+            Log.i(TAG, "flush: ${pending.size} bekleyen olay, ${nodes.size} telefon düğümü")
             val node = nodes.firstOrNull { it.isNearby } ?: nodes.firstOrNull() ?: return
             sendAll(node.id, pending)
         }
@@ -191,9 +193,11 @@ class PhoneSyncRepository(
             val bytes = ProtocolJson.encodeToString(WatchEvent.serializer(), event).toByteArray(Charsets.UTF_8)
             try {
                 messageClient.sendMessage(nodeId, EVENT_PATH, bytes).await()
+                Log.i(TAG, "Olay gönderildi: ${event.eventId}")
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                Log.w(TAG, "Olay gönderilemedi: ${event.eventId}", e)
                 return@withContext
             }
         }
@@ -206,5 +210,6 @@ class PhoneSyncRepository(
 
     private companion object {
         const val FLUSH_INTERVAL_MS = 15_000L
+        const val TAG = "PhoneSync"
     }
 }

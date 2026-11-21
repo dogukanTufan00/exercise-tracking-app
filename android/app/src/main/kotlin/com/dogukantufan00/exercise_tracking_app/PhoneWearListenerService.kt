@@ -1,5 +1,6 @@
 package com.dogukantufan00.exercise_tracking_app
 
+import android.util.Log
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 
@@ -16,6 +17,7 @@ class PhoneWearListenerService : WearableListenerService() {
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
+        Log.i("WearBridge", "Mesaj alındı: ${messageEvent.path}")
         if (messageEvent.path != EVENT_PATH) return
         WearEventQueue.add(String(messageEvent.data, Charsets.UTF_8))
         WearEventNotifier.notifyAvailable()
