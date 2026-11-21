@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
@@ -8,11 +10,19 @@ import '../../domain/week_grouping.dart';
 /// Geçmiş ekranının durumu: antrenman özetleri, yükleme ve hata bilgisi.
 ///
 /// Antrenman başlatma sayfası için etkin programı da okur ve programın bir gününden antrenman başlatır.
+/// [watchUpdates] verilirse saatten gelen her değişiklikte (ör. saatten başlatılan antrenman) liste yeniden okunur.
 class HistoryViewModel extends ChangeNotifier {
-  HistoryViewModel(this._repository, this._programRepository);
+  HistoryViewModel(
+    this._repository,
+    this._programRepository, {
+    Stream<int>? watchUpdates,
+  }) {
+    _watchSubscription = watchUpdates?.listen((_) => load());
+  }
 
   final WorkoutRepository _repository;
   final ProgramRepository _programRepository;
+  StreamSubscription<int>? _watchSubscription;
 
   List<WorkoutSummary> _workouts = const [];
   bool _isLoading = true;
@@ -114,6 +124,7 @@ class HistoryViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _watchSubscription?.cancel();
     super.dispose();
   }
 }

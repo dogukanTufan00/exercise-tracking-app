@@ -130,6 +130,8 @@ class WorkoutSessionService : Service() {
             .setStatus(Status.forPart(Status.TextPart(text)))
             .build()
             .apply(this)
+        // apply() yalnızca builder'ı Ongoing Activity bilgisiyle doldurur; bildirimi yayınlamak bize kalır.
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, builder.build())
     }
 
     private fun plainNotification(text: String): Notification =

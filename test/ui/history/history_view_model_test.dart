@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/ui/history/history_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,6 +116,21 @@ void main() {
     disposable.dispose();
 
     await expectLater(pending, completes);
+  });
+
+  test('saatten gelen değişiklikte liste yeniden okunur', () async {
+    final updates = StreamController<int>.broadcast();
+    final watched = HistoryViewModel(repository, programs, watchUpdates: updates.stream);
+    await watched.load();
+    expect(watched.workouts, isEmpty);
+
+    final created = await repository.createWorkout(title: 'Saatten');
+    updates.add(created.id);
+    await pumpEventQueue();
+
+    expect(watched.workouts.map((w) => w.workout.id), [created.id]);
+    watched.dispose();
+    await updates.close();
   });
 
   group('program ile antrenman başlatma', () {
