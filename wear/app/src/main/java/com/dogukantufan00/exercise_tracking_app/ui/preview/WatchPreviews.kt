@@ -11,6 +11,7 @@ import com.dogukantufan00.exercise_tracking_app.data.WorkoutSyncRepository
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayExercise
 import com.dogukantufan00.exercise_tracking_app.domain.DisplaySet
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
+import com.dogukantufan00.exercise_tracking_app.domain.WatchThemeId
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
 import com.dogukantufan00.exercise_tracking_app.ui.screens.ExerciseScreen
 import com.dogukantufan00.exercise_tracking_app.ui.screens.HomeScreen
@@ -73,7 +74,7 @@ private fun rememberPreviewViewModel(workout: DisplayWorkout?, reachable: Boolea
 @Preview(device = "spec:shape=Round,width=192,height=192,unit=dp,dpi=320", showSystemUi = true)
 @Composable
 private fun EmptyHomePreview() {
-    WatchTheme {
+    WatchTheme(WatchThemeId.DarkOrange) {
         HomeScreen(
             viewModel = rememberPreviewViewModel(workout = null, reachable = false),
             onOpenExercise = {},
@@ -85,7 +86,7 @@ private fun EmptyHomePreview() {
 @Preview(device = "spec:shape=Round,width=192,height=192,unit=dp,dpi=320", showSystemUi = true)
 @Composable
 private fun ExerciseListPreview() {
-    WatchTheme {
+    WatchTheme(WatchThemeId.DarkOrange) {
         HomeScreen(
             viewModel = rememberPreviewViewModel(workout = previewWorkout, reachable = false),
             onOpenExercise = {},
@@ -97,7 +98,7 @@ private fun ExerciseListPreview() {
 @Preview(device = "spec:shape=Round,width=192,height=192,unit=dp,dpi=320", showSystemUi = true)
 @Composable
 private fun ExercisePreview() {
-    WatchTheme {
+    WatchTheme(WatchThemeId.DarkOrange) {
         ExerciseScreen(
             viewModel = rememberPreviewViewModel(workout = previewWorkout),
             workoutExerciseId = 101L,
@@ -110,7 +111,7 @@ private fun ExercisePreview() {
 @Preview(device = "spec:shape=Round,width=192,height=192,unit=dp,dpi=320", showSystemUi = true)
 @Composable
 private fun RestPreview() {
-    WatchTheme {
+    WatchTheme(WatchThemeId.DarkOrange) {
         RestScreen(
             viewModel = rememberPreviewViewModel(workout = previewWorkout),
             onDone = {},

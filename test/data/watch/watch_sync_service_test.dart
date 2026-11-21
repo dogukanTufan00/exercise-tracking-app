@@ -297,4 +297,10 @@ void main() {
 
     expect(await setsOf(workoutId), hasLength(1));
   });
+
+  test('publishTheme kanala tema adını yazar', () async {
+    await service.publishTheme(AppThemeId.yellowNavy);
+
+    expect(channel.publishedThemes, ['yellowNavy']);
+  });
 }

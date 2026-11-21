@@ -22,6 +22,7 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "publishSnapshot" -> publishSnapshot(call.arguments as? String, result)
                 "clearSnapshot" -> clearSnapshot(result)
+                "publishTheme" -> publishTheme(call.arguments as? String, result)
                 "drainEvents" -> result.success(WearEventQueue.list())
                 "ackEvents" -> {
                     val ids = (call.arguments as? List<*>)?.filterIsInstance<String>().orEmpty()
@@ -71,10 +72,28 @@ class MainActivity : FlutterActivity() {
         result.success(null)
     }
 
+    /** Seçili tema adını `/settings/theme` DataItem'ına yazar (bkz. §15.7). Hata yalnızca günlüğe yazılır. */
+    private fun publishTheme(themeId: String?, result: MethodChannel.Result) {
+        if (themeId == null) {
+            result.error("bad_args", "publishTheme için metin bekleniyordu", null)
+            return
+        }
+        val request = PutDataMapRequest.create(THEME_PATH).run {
+            dataMap.putString(THEME_KEY, themeId)
+            asPutDataRequest().setUrgent()
+        }
+        Wearable.getDataClient(this)
+            .putDataItem(request)
+            .addOnFailureListener { e -> Log.w(TAG, "Tema yazılamadı", e) }
+        result.success(null)
+    }
+
     private companion object {
         const val TAG = "WearBridge"
         const val METHOD_CHANNEL = "exercise_tracker/wear"
         const val EVENT_CHANNEL = "exercise_tracker/wear/events"
         const val SNAPSHOT_PATH = "/workout/active"
+        const val THEME_PATH = "/settings/theme"
+        const val THEME_KEY = "themeId"
     }
 }

@@ -43,6 +43,16 @@ Future<void> main() async {
   );
   unawaited(watchSyncService.start());
 
+  // Seçili tema saate yayınlanır: açılışta ve tema her değiştiğinde (bkz. docs/ARCHITECTURE.md §15.7).
+  var publishedThemeId = themeController.themeId;
+  unawaited(watchSyncService.publishTheme(publishedThemeId));
+  themeController.addListener(() {
+    final current = themeController.themeId;
+    if (current == publishedThemeId) return;
+    publishedThemeId = current;
+    unawaited(watchSyncService.publishTheme(current));
+  });
+
   runApp(
     ExerciseTrackerApp(
       workoutRepository: workoutRepository,

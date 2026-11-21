@@ -16,8 +16,8 @@ android {
         applicationId = "com.dogukantufan00.exercise_tracking_app"
         minSdk = 30 // Wear OS 3
         targetSdk = 36
-        // Telefonun versionCode'uyla çakışmasın diye 1000 + N (bkz. ARCHITECTURE §15).
-        versionCode = 1001
+        // Telefonun versionCode'uyla çakışmasın diye 2000000 + N (bkz. ARCHITECTURE §15).
+        versionCode = 2000001
         versionName = "0.1.0"
     }
 

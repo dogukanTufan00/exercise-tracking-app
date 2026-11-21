@@ -3,6 +3,8 @@ package com.dogukantufan00.exercise_tracking_app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dogukantufan00.exercise_tracking_app.data.RestSettingsStore
 import com.dogukantufan00.exercise_tracking_app.ui.WatchNavHost
@@ -16,8 +18,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val repository = (application as WatchApp).syncRepository
         val restSettings = RestSettingsStore.create(applicationContext)
+        val themeSource = (application as WatchApp).themeSource
         setContent {
-            WatchTheme {
+            val themeId by themeSource.themeId.collectAsStateWithLifecycle()
+            WatchTheme(themeId) {
                 val viewModel: WatchWorkoutViewModel = viewModel(
                     factory = watchWorkoutViewModelFactory(repository, restSettings),
                 )

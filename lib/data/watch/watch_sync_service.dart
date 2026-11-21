@@ -96,7 +96,11 @@ class WatchSyncService {
 
   /// Seçili temayı saate yayınlar (bkz. docs/ARCHITECTURE.md §15.7). Hata fırlatmaz.
   Future<void> publishTheme(AppThemeId themeId) async {
-    throw UnimplementedError();
+    try {
+      await channel.publishTheme(themeId.name);
+    } catch (error) {
+      debugPrint('Tema saate yayınlanamadı: $error');
+    }
   }
 
   /// Saatten gelen olaylarla değişen antrenmanların id'leri (yayın akışı).

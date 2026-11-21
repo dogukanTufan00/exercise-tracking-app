@@ -384,7 +384,9 @@ Galaxy Watch (Wear OS 3+) için telefon uygulamasıyla birlikte çalışan bir e
 - **Aynı kimlik ve imza:** Data Layer yalnızca aynı paket adı ve aynı imza anahtarıyla derlenmiş uygulamaları eşler.
   Saat uygulamasının `applicationId`'si de `com.dogukantufan00.exercise_tracking_app`'tir (genel `io.github…`
   kuralının istisnası: telefon uygulaması bu kimlikle yayında) ve release'i aynı keystore ile imzalanır (§11).
-  Saatin `versionCode`'u telefonla çakışmasın diye `1000 + N` aralığındadır.
+  Saatin `versionCode`'u telefonla çakışmasın diye `2000000 + N` aralığındadır. Telefonun yapı numarası
+  2026-11-22'de 7'den 1002'ye atladı: saat APK'sı (1001) yanlışlıkla telefona kurulmuştu ve veriyi silmeden geri
+  dönmenin tek yolu daha büyük numaraydı. Numara yalnızca artar (§11).
 
 ### 15.1 Fazlar
 
