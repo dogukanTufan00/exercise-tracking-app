@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../models/models.dart';
 import '../repositories/workout_repository.dart';
 import 'watch_protocol.dart';
 import 'watch_snapshot_builder.dart';
@@ -91,6 +92,11 @@ class WatchSyncService {
     final next = _queue.then((_) => _processBatch());
     _queue = next;
     return next;
+  }
+
+  /// Seçili temayı saate yayınlar (bkz. docs/ARCHITECTURE.md §15.7). Hata fırlatmaz.
+  Future<void> publishTheme(AppThemeId themeId) async {
+    throw UnimplementedError();
   }
 
   /// Saatten gelen olaylarla değişen antrenmanların id'leri (yayın akışı).

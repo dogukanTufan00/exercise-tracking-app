@@ -17,6 +17,13 @@ const val WATCH_PROTOCOL_VERSION = 1
 const val SNAPSHOT_PATH = "/workout/active"
 const val SNAPSHOT_JSON_KEY = "json"
 
+/**
+ * Telefonda seçili temanın DataItem yolu; tema adı [THEME_KEY] anahtarında metin olarak durur
+ * (`darkOrange`, `redBlack`, `yellowNavy`, `lightBlue`; bilinmeyen değer → varsayılan tema).
+ */
+const val THEME_PATH = "/settings/theme"
+const val THEME_KEY = "themeId"
+
 /** Saatin olay gönderdiği mesaj yolu. */
 const val EVENT_PATH = "/event"
 

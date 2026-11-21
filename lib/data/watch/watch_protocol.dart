@@ -10,6 +10,11 @@ const int watchProtocolVersion = 1;
 /// Anlık durumun yayınlandığı DataItem yolu.
 const String watchSnapshotPath = '/workout/active';
 
+/// Telefonda seçili temanın yayınlandığı DataItem yolu; tema adı [watchThemeKey] anahtarındadır
+/// (`AppThemeId.name`: `darkOrange`, `redBlack`, `yellowNavy`, `lightBlue`).
+const String watchThemePath = '/settings/theme';
+const String watchThemeKey = 'themeId';
+
 /// Saatin olay gönderdiği mesaj yolu.
 const String watchEventPath = '/event';
 

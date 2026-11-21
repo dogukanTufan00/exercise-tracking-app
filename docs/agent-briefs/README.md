@@ -132,3 +132,4 @@ await tester.pumpAndSettle();
 | 13 | AB | [Telefonun Kotlin köprüsü (#24)](wave13-ab-phone-wear-bridge.md) |
 | 13 | AC | [Saat uygulamasının veri katmanı (#24)](wave13-ac-watch-data.md) |
 | 13 | AD | [Saat uygulamasının ekranları (#24)](wave13-ad-watch-ui.md) |
+| 14 | AE | [Saat telefonun temasını izlesin (#24)](wave14-ae-watch-theme.md) |

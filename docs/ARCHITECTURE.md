@@ -502,6 +502,31 @@ Kurallar:
   Dinlenme sayacı (dairesel ilerleme, ±15 sn, "Atla"; bitince titreşim).
 - **Dinlenme süresi** saatte ayarlanır ve saatte saklanır (varsayılan 90 sn). Faz 1'de sayaç çalışırken ekran açık tutulur;
   ekran kapalıyken güvenilir çalışma (foreground service + Ongoing Activity) Faz 2'dedir.
-- Saat teması sabittir: koyu zemin + turuncu vurgu (telefonun "koyu turuncu" teması). Yazılar Türkçe.
+- Saat teması telefonda seçili temayı izler (§15.7). Yazılar Türkçe.
 - **Test:** `domain/` ve protokol için JVM birim testleri (`gradlew test`); ekranlar gerçek saatte denenir
   (Wi-Fi üzerinden `adb`).
+
+### 15.7 Tema eşleme
+
+Saat, telefonda seçili temayı kullanır (kullanıcı kararı, 2026-11-22).
+
+- **Telefon → saat: DataItem `/settings/theme`**, DataMap'te `themeId` anahtarında `AppThemeId.name`
+  (`darkOrange`, `redBlack`, `yellowNavy`, `lightBlue`). Telefon bunu uygulama açılışında ve tema her değiştiğinde
+  yazar (`WatchSyncService.publishTheme`, `setUrgent`). Değer aynıysa Data Layer değişiklik bildirmez; ek yük yoktur.
+- **Saat:** son temayı kendi SharedPreferences'ına da yazar; açılışta önce bunu kullanır (ilk karede doğru renk),
+  sonra DataItem'ı okur ve değişiklikleri dinler. Bilinmeyen ya da eksik değer → `darkOrange`.
+- **Renkler telefonun paletinden** (`lib/ui/core/theme/app_palette.dart`) gelir. Saat ekranı OLED'dir; açık zemin
+  pil harcar ve gözü yorar. Bu yüzden **açık mavi temada saat koyu zemin kullanır**, vurgu mavidir:
+
+| Tema | background | surface (kart/düğme) | outline | onSurface | muted | primary | onPrimary |
+|---|---|---|---|---|---|---|---|
+| darkOrange | #121212 | #1E1E1E | #2C2C2C | #F2F2F2 | #9A9A9A | #FF7A1A | #1A0E00 |
+| redBlack | #0B0B0B | #191919 | #2A2A2A | #F5F5F5 | #9C9C9C | #E5383B | #FFFFFF |
+| yellowNavy | #0F1B2D | #172A44 | #24395A | #EEF2F8 | #93A3BC | #FFC93C | #1E1600 |
+| lightBlue (saatte koyu) | #10151D | #1B2430 | #2A3646 | #EEF2F8 | #93A0B2 | #5B8DEF | #FFFFFF |
+
+  Wear Material 3 eşlemesi: `background`/`surfaceContainerLow` = background, `surfaceContainer` = surface,
+  `surfaceContainerHigh` = outline, `onBackground`/`onSurface` = onSurface, `onSurfaceVariant` = muted,
+  `outline`/`outlineVariant` = outline, `primary`/`onPrimary` aynen, `primaryContainer` = primary'nin %30'u background
+  üzerine karıştırılmış, `onPrimaryContainer` = onSurface. Ekranlar renkleri yalnızca `MaterialTheme.colorScheme`'den okur.
+
