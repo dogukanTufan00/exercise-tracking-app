@@ -2,6 +2,7 @@ package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchExercise
 import com.dogukantufan00.exercise_tracking_app.data.WatchSet
@@ -163,6 +164,31 @@ class MergeOptimisticTest {
     @Test
     fun deleteUnknownSetIsIgnored() {
         val result = mergeOptimistic(snapshot(), listOf(deleteSet(setId = 12345)))!!
+
+        assertEquals(listOf(900L, 901L, 902L), result.exercises[0].sets.map { it.id })
+        assertFalse(result.hasPendingEvents)
+    }
+
+    @Test
+    fun startWorkoutEventDoesNotChangeState() {
+        val start = StartWorkoutEvent(eventId = "s1", createdAt = "2026-11-22T18:30:00", programDayId = 11)
+
+        val result = mergeOptimistic(snapshot(), listOf(start))!!
+
+        assertEquals(3, result.exercises[0].sets.size)
+        assertFalse(result.hasPendingEvents)
+        assertEquals(WatchSetValue(42.5, 8), result.exercises[0].draft)
+    }
+
+    @Test
+    fun setEventsOfAnotherWorkoutAreIgnoredAlongsideStartEvent() {
+        val events: List<WatchEvent> = listOf(
+            StartWorkoutEvent(eventId = "s1", createdAt = "2026-11-22T18:30:00", programDayId = null),
+            deleteSet(workoutId = 7, setId = 900),
+            addSet(workoutId = 7),
+        )
+
+        val result = mergeOptimistic(snapshot(), events)!!
 
         assertEquals(listOf(900L, 901L, 902L), result.exercises[0].sets.map { it.id })
         assertFalse(result.hasPendingEvents)

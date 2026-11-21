@@ -9,7 +9,6 @@ import '../../domain/program_schedule.dart';
 import '../../domain/week_grouping.dart';
 import '../core/formatters.dart';
 import '../core/theme/app_spacing.dart';
-import '../core/watch_sync_provider.dart';
 import '../core/widgets/empty_state.dart';
 import '../core/widgets/muscle_group_chip.dart';
 import '../settings/settings_screen.dart';
@@ -29,7 +28,6 @@ class HistoryScreen extends StatelessWidget {
       create: (context) => HistoryViewModel(
         context.read<WorkoutRepository>(),
         context.read<ProgramRepository>(),
-        watchSync: readWatchSync(context),
       )..load(),
       child: const _HistoryView(),
     );

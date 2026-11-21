@@ -110,6 +110,74 @@ class WatchProtocolTest {
     }
 
     @Test
+    fun startWorkoutEventHasProtocolFieldNamesWithoutWorkoutId() {
+        val event = StartWorkoutEvent(
+            eventId = "uuid-3",
+            createdAt = "2026-11-22T18:30:00.000",
+            programDayId = 11,
+        )
+
+        val encoded = ProtocolJson.encodeToString(WatchEvent.serializer(), event)
+        val obj = Json.parseToJsonElement(encoded).jsonObject
+
+        assertEquals("startWorkout", obj.getValue("type").toString().trim('"'))
+        assertEquals(setOf("type", "protocol", "eventId", "createdAt", "programDayId"), obj.keys)
+        assertEquals("11", obj.getValue("programDayId").toString())
+    }
+
+    @Test
+    fun emptyStartWorkoutEncodesNullProgramDay() {
+        val event = StartWorkoutEvent(eventId = "uuid-4", createdAt = "2026-11-22T18:30:00.000", programDayId = null)
+
+        val encoded = ProtocolJson.encodeToString(WatchEvent.serializer(), event)
+        val obj = Json.parseToJsonElement(encoded).jsonObject
+
+        assertEquals("null", obj.getValue("programDayId").toString())
+    }
+
+    @Test
+    fun programIsReadFromPhoneJson() {
+        val json = """
+            {
+              "protocol": 1,
+              "programId": 3,
+              "name": "PPL",
+              "days": [ { "dayId": 11, "name": "Push A", "weekday": 1, "exercises": ["Bench Press"] } ]
+            }
+        """.trimIndent()
+
+        val program = ProtocolJson.decodeFromString(WatchProgram.serializer(), json)
+
+        assertEquals(3L, program.programId)
+        assertEquals(WatchProgramDay(dayId = 11, name = "Push A", weekday = 1, exercises = listOf("Bench Press")), program.days.single())
+    }
+
+    @Test
+    fun programRoundTrips() {
+        val program = WatchProgram(
+            programId = 3,
+            name = "PPL",
+            days = listOf(
+                WatchProgramDay(dayId = 11, name = "Push A", weekday = 1, exercises = listOf("Bench Press", "Incline DB Press")),
+                WatchProgramDay(dayId = 12, name = "Serbest", weekday = null, exercises = emptyList()),
+            ),
+        )
+
+        val encoded = ProtocolJson.encodeToString(WatchProgram.serializer(), program)
+
+        assertEquals(program, ProtocolJson.decodeFromString(WatchProgram.serializer(), encoded))
+    }
+
+    @Test
+    fun appliedRoundTrips() {
+        val applied = WatchApplied(appliedEventIds = listOf("a", "b"))
+
+        val encoded = ProtocolJson.encodeToString(WatchApplied.serializer(), applied)
+
+        assertEquals(applied, ProtocolJson.decodeFromString(WatchApplied.serializer(), encoded))
+    }
+
+    @Test
     fun eventListRoundTrips() {
         val serializer = ListSerializer(WatchEvent.serializer())
         val events: List<WatchEvent> = listOf(

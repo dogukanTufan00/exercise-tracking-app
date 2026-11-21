@@ -2,6 +2,7 @@ package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
 import com.dogukantufan00.exercise_tracking_app.data.WatchSnapshot
@@ -48,11 +49,11 @@ data class DisplaySet(
  *
  * Kurallar:
  * - [snapshot] null ise null.
- * - Yalnızca `workoutId`'si anlık durumunkiyle aynı ve id'si `appliedEventIds`'te OLMAYAN olaylar uygulanır,
- *   [pending] sırasıyla.
- * - AddSetEvent: ilgili hareketin sonuna bekleyen set eklenir; hareketin taslağı bu setin değerleri olur.
- *   Hareket anlık durumda yoksa olay yok sayılır.
- * - DeleteSetEvent: o id'li onaylı set listeden çıkarılır; set yoksa yok sayılır.
+ * - Id'si `appliedEventIds`'te OLMAYAN olaylar uygulanır, [pending] sırasıyla.
+ * - AddSetEvent: `workoutId`'si anlık durumunkiyle aynıysa ilgili hareketin sonuna bekleyen set eklenir; hareketin
+ *   taslağı bu setin değerleri olur. Hareket anlık durumda yoksa olay yok sayılır.
+ * - DeleteSetEvent: `workoutId` aynıysa o id'li onaylı set listeden çıkarılır; set yoksa yok sayılır.
+ * - StartWorkoutEvent: iyimser durumu değiştirmez (§15.8); antrenman telefonda oluşunca anlık durumda görünür.
  * - Her hareketin setleri sonunda 1, 2, 3… olarak numaralanır.
  * - [DisplayWorkout.hasPendingEvents]: en az bir olay uygulandıysa true.
  */
@@ -60,7 +61,7 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
     if (snapshot == null) return null
 
     val applied = snapshot.appliedEventIds.toSet()
-    val events = pending.filter { it.workoutId == snapshot.workoutId && it.eventId !in applied }
+    val events = pending.filter { it.eventId !in applied }
 
     val setsByExercise = mutableMapOf<Long, MutableList<DisplaySet>>()
     val drafts = mutableMapOf<Long, WatchSetValue>()
@@ -82,7 +83,7 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
         when (event) {
             is AddSetEvent -> {
                 val sets = setsByExercise[event.workoutExerciseId]
-                if (sets != null && isValidSetValue(event.weightKg, event.reps)) {
+                if (event.workoutId == snapshot.workoutId && sets != null && isValidSetValue(event.weightKg, event.reps)) {
                     sets.add(
                         DisplaySet(
                             id = null,
@@ -98,11 +99,12 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
             }
             is DeleteSetEvent -> {
                 val owner = setsByExercise.values.firstOrNull { sets -> sets.any { it.id == event.setId } }
-                if (owner != null) {
+                if (event.workoutId == snapshot.workoutId && owner != null) {
                     owner.removeAll { it.id == event.setId }
                     hasPendingEvents = true
                 }
             }
+            is StartWorkoutEvent -> Unit
         }
     }
 

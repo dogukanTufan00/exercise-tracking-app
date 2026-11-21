@@ -4,21 +4,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
+import com.dogukantufan00.exercise_tracking_app.data.PendingStart
 import com.dogukantufan00.exercise_tracking_app.data.RestSettingsStore
+import com.dogukantufan00.exercise_tracking_app.data.WatchProgram
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
 import com.dogukantufan00.exercise_tracking_app.data.WatchTarget
 import com.dogukantufan00.exercise_tracking_app.data.WorkoutSyncRepository
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayExercise
 import com.dogukantufan00.exercise_tracking_app.domain.DisplaySet
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
+import com.dogukantufan00.exercise_tracking_app.domain.RestProgress
 import com.dogukantufan00.exercise_tracking_app.domain.WatchThemeId
+import com.dogukantufan00.exercise_tracking_app.session.RestTimerController
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
 import com.dogukantufan00.exercise_tracking_app.ui.screens.ExerciseScreen
 import com.dogukantufan00.exercise_tracking_app.ui.screens.HomeScreen
 import com.dogukantufan00.exercise_tracking_app.ui.screens.RestScreen
 import com.dogukantufan00.exercise_tracking_app.ui.theme.WatchTheme
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+
+/** Önizlemeler için sayaç: hiçbir şey yapmaz (gerçek sayaç uygulama sınıfındadır). */
+private class PreviewRestTimer : RestTimerController {
+    override val rest: StateFlow<RestProgress?> = MutableStateFlow(null)
+    override val finished: SharedFlow<Unit> = MutableSharedFlow()
+    override fun start(totalSeconds: Int) = Unit
+    override fun adjust(deltaSeconds: Int) = Unit
+    override fun skip() = Unit
+}
 
 /** Önizlemeler için sahte repository: sabit bir antrenman ve erişilebilirlik durumu. Yazmalar yalnızca yoksayılır. */
 class PreviewWorkoutSyncRepository(
@@ -28,9 +43,16 @@ class PreviewWorkoutSyncRepository(
     override val workout: StateFlow<DisplayWorkout?> = MutableStateFlow(workout)
     override val phoneReachable: StateFlow<Boolean> = MutableStateFlow(reachable)
 
+    override val program: StateFlow<WatchProgram?> = MutableStateFlow(null)
+    override val pendingStart: StateFlow<PendingStart?> = MutableStateFlow(null)
+
     override suspend fun addSet(workoutExerciseId: Long, weightKg: Double, reps: Int) = Unit
 
     override suspend fun deleteSet(setId: Long) = Unit
+
+    override suspend fun startWorkout(programDayId: Long?) = Unit
+
+    override suspend fun cancelPendingStart() = Unit
 }
 
 private val previewWorkout = DisplayWorkout(
@@ -67,6 +89,7 @@ private fun rememberPreviewViewModel(workout: DisplayWorkout?, reachable: Boolea
         WatchWorkoutViewModel(
             repository = PreviewWorkoutSyncRepository(workout, reachable),
             restSettings = RestSettingsStore.create(context),
+            restTimer = PreviewRestTimer(),
         )
     }
 }
@@ -78,6 +101,7 @@ private fun EmptyHomePreview() {
         HomeScreen(
             viewModel = rememberPreviewViewModel(workout = null, reachable = false),
             onOpenExercise = {},
+            onOpenRest = {},
             onOpenRestSettings = {},
         )
     }
@@ -90,6 +114,7 @@ private fun ExerciseListPreview() {
         HomeScreen(
             viewModel = rememberPreviewViewModel(workout = previewWorkout, reachable = false),
             onOpenExercise = {},
+            onOpenRest = {},
             onOpenRestSettings = {},
         )
     }

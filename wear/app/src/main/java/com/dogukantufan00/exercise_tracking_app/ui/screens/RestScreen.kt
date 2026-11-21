@@ -1,16 +1,11 @@
 package com.dogukantufan00.exercise_tracking_app.ui.screens
 
 import android.app.Activity
-import android.content.Context
-import android.os.Build
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.view.WindowManager
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -29,12 +24,14 @@ import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import com.dogukantufan00.exercise_tracking_app.domain.formatDuration
+import com.dogukantufan00.exercise_tracking_app.hasAllPermissions
+import com.dogukantufan00.exercise_tracking_app.session.SessionController
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
 
-/** Bitişte titreşim deseni (ms): kısa, kısa, uzun. */
-private val FINISH_PATTERN_MS = longArrayOf(0L, 120L, 100L, 120L, 100L, 400L)
-
-/** Dinlenme sayacı: dairesel ilerleme, kalan süre, ±15 sn ve "Atla". Bitince titreşir ve geri döner. */
+/**
+ * Dinlenme sayacı: dairesel ilerleme, kalan süre, ±15 sn ve "Atla". Sayaç arka planda sürer (§15.8): bu ekrandan
+ * kaydırarak çıkmak sayacı durdurmaz; süre bitince kontrolcü titretir ve bu ekran geri döner.
+ */
 @Composable
 fun RestScreen(
     viewModel: WatchWorkoutViewModel,
@@ -43,18 +40,11 @@ fun RestScreen(
     val context = LocalContext.current
     val rest by viewModel.rest.collectAsStateWithLifecycle()
 
-    KeepScreenOn()
+    // Antrenman servisi (ekran kapalıyken de çalışan sayaç) yoksa sayaç ekran açıkken çalışır.
+    KeepScreenOn(enabled = rest != null && !hasAllPermissions(context, SessionController.requiredPermissions()))
 
     LaunchedEffect(Unit) {
-        viewModel.restFinished.collect {
-            vibrateFinished(context)
-            onDone()
-        }
-    }
-
-    // Ekrandan çıkmak (kaydırarak geri) sayacı durdurur.
-    DisposableEffect(Unit) {
-        onDispose { viewModel.skipRest() }
+        viewModel.restFinished.collect { onDone() }
     }
 
     // Kaydırılabilir liste yerine sabit düzen: yuvarlak ekranda ölçeklenip kaymasın.
@@ -98,25 +88,14 @@ fun RestScreen(
     }
 }
 
-/** Sayaç çalışırken ekran açık kalır; bu ekrandan çıkınca bayrak kaldırılır. */
+/** [enabled] iken ekran açık tutulur; kapanınca bayrak kaldırılır. */
 @Composable
-private fun KeepScreenOn() {
+private fun KeepScreenOn(enabled: Boolean) {
     val activity = LocalContext.current as? Activity
-    DisposableEffect(activity) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    DisposableEffect(activity, enabled) {
+        if (enabled) activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         onDispose {
-            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            if (enabled) activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         }
     }
-}
-
-/** Dinlenme bitince titreşim. Android 12+ VibratorManager, daha eski sürümlerde Vibrator kullanılır. */
-private fun vibrateFinished(context: Context) {
-    val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        context.getSystemService(VibratorManager::class.java)?.defaultVibrator
-    } else {
-        @Suppress("DEPRECATION")
-        context.getSystemService(Vibrator::class.java)
-    }
-    vibrator?.vibrate(VibrationEffect.createWaveform(FINISH_PATTERN_MS, -1))
 }

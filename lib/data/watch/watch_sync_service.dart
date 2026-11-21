@@ -11,13 +11,17 @@ import 'watch_snapshot_builder.dart';
 import 'watch_sync_store.dart';
 import 'wear_channel.dart';
 
-/// Telefon tarafında saat eşlemesinin tüm mantığı (bkz. docs/ARCHITECTURE.md §15.3–15.5).
+/// Telefon tarafında saat eşlemesinin tüm mantığı (bkz. docs/ARCHITECTURE.md §15.3–15.8).
 ///
-/// - Etkin antrenmanın anlık durumunu saate yayınlar ([setActiveWorkout], [workoutChanged]).
+/// - Etkin antrenmanın anlık durumunu saate yayınlar ([setActiveWorkout], [workoutChanged], [activeWorkoutChanged]).
+/// - Etkin programı saate yayınlar ([programChanged]).
 /// - Saatten gelen olayları işler ([processPendingEvents]): her olay tam bir kez uygulanır.
 /// - Olaylarla değişen antrenmanları [workoutUpdates] ile duyurur (açık Antrenman ekranı yenilensin diye).
 ///
 /// Hiçbir metot dışarıya hata fırlatmaz: saat tarafındaki sorunlar telefon uygulamasını bozmaz.
+///
+/// [repository] ve [programRepository] sarılmamış (saate haber vermeyen) örnekler olmalıdır; aksi halde
+/// sarmalayıcılar ile bu servis birbirini tetikler.
 class WatchSyncService {
   WatchSyncService({
     required this.repository,
@@ -39,7 +43,8 @@ class WatchSyncService {
   final String Function(DateTime startedAt) fallbackTitle;
   final DateTime Function() clock;
 
-  /// Etkin antrenman bu süreden eski başlamışsa temizlenir.
+  /// Etkin antrenman bu süreden eski başlamışsa temizlenir; saatten gelen başlatma olayı da bu süreden
+  /// eskiyse yok sayılır.
   static const Duration activeWorkoutMaxAge = Duration(hours: 12);
 
   /// Saklanan işlenmiş olay id'lerinin en fazla sayısı.
@@ -54,7 +59,7 @@ class WatchSyncService {
   /// Olay işleme zinciri: bir çağrı bitmeden ikincisi başlamaz.
   Future<void> _queue = Future<void>.value();
 
-  /// Kanalı dinlemeye başlar, kuyruktaki olayları işler ve etkin antrenmanı yeniden yayınlar
+  /// Kanalı dinlemeye başlar, kuyruktaki olayları işler, etkin antrenmanı ve programı yeniden yayınlar
   /// (12 saat kuralı burada da uygulanır). Uygulama açılışında bir kez çağrılır.
   Future<void> start() async {
     try {
@@ -65,6 +70,8 @@ class WatchSyncService {
       );
       await processPendingEvents();
       await _republish();
+      await programChanged();
+      await _publishApplied();
     } catch (error) {
       debugPrint('Saat eşlemesi başlatılamadı: $error');
     }
@@ -101,14 +108,41 @@ class WatchSyncService {
 
   /// Etkin antrenmanı (varsa) koşulsuz yeniden yayınlar; hangi antrenmanın değiştiği bilinmeyen değişikliklerden
   /// sonra repository sarmalayıcısı çağırır (§15.8 madde 2). Hata fırlatmaz.
-  Future<void> activeWorkoutChanged() async {
-    throw UnimplementedError();
-  }
+  Future<void> activeWorkoutChanged() => _republish();
 
   /// Program verisi değişince çağrılır: etkin programı `/program/active`'e yeniden yayınlar ya da
   /// etkin program yoksa siler (§15.8). `start()` de bir kez çağırır. Hata fırlatmaz.
   Future<void> programChanged() async {
-    throw UnimplementedError();
+    try {
+      final detail = await programRepository.getActiveProgramDetail();
+      if (detail == null) {
+        await channel.clearProgram();
+        return;
+      }
+
+      final days = [...detail.days]
+        ..sort((a, b) => a.day.position.compareTo(b.day.position));
+      final program = WatchProgram(
+        programId: detail.program.id,
+        name: detail.program.name,
+        days: [
+          for (final day in days)
+            WatchProgramDay(
+              dayId: day.day.id,
+              name: day.day.name,
+              weekday: day.day.weekday,
+              exercises: [
+                for (final exercise in ([...day.exercises]
+                  ..sort((a, b) => a.dayExercise.position.compareTo(b.dayExercise.position))))
+                  exercise.exercise.name,
+              ],
+            ),
+        ],
+      );
+      await channel.publishProgram(jsonEncode(program.toJson()));
+    } catch (error) {
+      debugPrint('Program saate yayınlanamadı: $error');
+    }
   }
 
   /// Seçili temayı saate yayınlar (bkz. docs/ARCHITECTURE.md §15.7). Hata fırlatmaz.
@@ -165,6 +199,19 @@ class WatchSyncService {
     }
   }
 
+  /// İşlenmiş olay id'lerinin son [maxAppliedEventIds] tanesini `/events/applied`'e yazar (§15.8).
+  Future<void> _publishApplied() async {
+    try {
+      final processed = await store.getProcessedEventIds();
+      await channel.publishApplied(jsonEncode({
+        'protocol': watchProtocolVersion,
+        'appliedEventIds': _lastAppliedIds(processed),
+      }));
+    } catch (error) {
+      debugPrint('İşlenen olaylar saate yayınlanamadı: $error');
+    }
+  }
+
   /// İşlenmiş id'lerin son [maxAppliedEventIds] tanesi (eskiden yeniye).
   List<String> _lastAppliedIds(List<String> processed) {
     if (processed.length <= maxAppliedEventIds) return processed;
@@ -181,7 +228,7 @@ class WatchSyncService {
 
       final processed = List<String>.of(await store.getProcessedEventIds());
       final processedIds = processed.toSet();
-      final activeId = await store.getActiveWorkoutId();
+      var activeId = await store.getActiveWorkoutId();
       final ackIds = <String>[];
       final changedWorkoutIds = <int>{};
       var newlyProcessed = 0;
@@ -204,8 +251,11 @@ class WatchSyncService {
           continue;
         }
 
-        if (await _apply(event, activeId)) {
-          changedWorkoutIds.add(event.workoutId);
+        final changed = await _apply(event, activeId);
+        if (changed != null) {
+          changedWorkoutIds.add(changed);
+          // Saatten başlatılan antrenman etkin olur; sonraki set olayları onu hedefler.
+          if (event is StartWorkoutEvent) activeId = changed;
         }
         processed.add(id);
         processedIds.add(id);
@@ -220,7 +270,10 @@ class WatchSyncService {
         );
       }
       if (ackIds.isNotEmpty) await channel.ackEvents(ackIds);
-      if (newlyProcessed > 0) await _republish();
+      if (newlyProcessed > 0) {
+        await _republish();
+        await _publishApplied();
+      }
       for (final id in changedWorkoutIds) {
         if (!_updates.isClosed) _updates.add(id);
       }
@@ -229,41 +282,75 @@ class WatchSyncService {
     }
   }
 
-  /// Olayı uygular. Uygulandıysa `true`; yok sayılan (etkisiz) olaylarda ya da hatada `false`.
-  /// Her iki durumda da olay işlenmiş sayılır (çağıran işaretler).
-  Future<bool> _apply(WatchEvent event, int? activeId) async {
+  /// Olayı uygular. Etkisi olduysa etkilenen antrenmanın id'sini döner; yok sayıldıysa ya da hata olduysa `null`.
+  /// Her iki durumda da çağıran olayı işlenmiş sayar.
+  Future<int?> _apply(WatchEvent event, int? activeId) async {
     try {
-      if (event.protocol != watchProtocolVersion) return false;
-      if (activeId == null || event.workoutId != activeId) return false;
-
-      final detail = await repository.getWorkoutDetail(event.workoutId);
-      if (detail == null) return false;
-
-      if (event is AddSetEvent) {
-        if (event.weightKg < 0 || event.reps <= 0) return false;
-        final exists = detail.exercises
-            .any((e) => e.workoutExercise.id == event.workoutExerciseId);
-        if (!exists) return false;
-        await repository.addSet(
-          event.workoutExerciseId,
-          weightKg: event.weightKg,
-          reps: event.reps,
-        );
-        return true;
-      }
-
-      if (event is DeleteSetEvent) {
-        final owns = detail.exercises
-            .any((e) => e.sets.any((set) => set.id == event.setId));
-        if (!owns) return false;
-        await repository.deleteSet(event.setId);
-        return true;
-      }
-      return false;
+      if (event.protocol != watchProtocolVersion) return null;
+      return switch (event) {
+        StartWorkoutEvent() => await _applyStart(event),
+        AddSetEvent() => await _applyAddSet(event, activeId),
+        DeleteSetEvent() => await _applyDeleteSet(event, activeId),
+      };
     } catch (error) {
       debugPrint('Saat olayı uygulanamadı: $error');
-      return false;
+      return null;
     }
+  }
+
+  /// Saatten başlatma: gün varsa ondan, yoksa boş antrenman açılır ve etkin olur. Etkin antrenman
+  /// olup olmadığına bakılmaz.
+  Future<int?> _applyStart(StartWorkoutEvent event) async {
+    if (clock().difference(event.createdAt) > activeWorkoutMaxAge) return null;
+
+    final dayId = event.programDayId;
+    Workout workout;
+    if (dayId == null) {
+      workout = await repository.createWorkout(startedAt: event.createdAt);
+    } else {
+      try {
+        workout = await programRepository.startWorkoutFromDay(
+          dayId,
+          startedAt: event.createdAt,
+        );
+      } on ArgumentError {
+        // Gün silinmiş: olay yok sayılır.
+        return null;
+      }
+    }
+    await store.setActiveWorkoutId(workout.id);
+    return workout.id;
+  }
+
+  Future<int?> _applyAddSet(AddSetEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return null;
+    if (event.weightKg < 0 || event.reps <= 0) return null;
+
+    final detail = await repository.getWorkoutDetail(event.workoutId);
+    if (detail == null) return null;
+    final exists = detail.exercises
+        .any((e) => e.workoutExercise.id == event.workoutExerciseId);
+    if (!exists) return null;
+
+    await repository.addSet(
+      event.workoutExerciseId,
+      weightKg: event.weightKg,
+      reps: event.reps,
+    );
+    return event.workoutId;
+  }
+
+  Future<int?> _applyDeleteSet(DeleteSetEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return null;
+
+    final detail = await repository.getWorkoutDetail(event.workoutId);
+    if (detail == null) return null;
+    final owns = detail.exercises
+        .any((e) => e.sets.any((set) => set.id == event.setId));
+    if (!owns) return null;
+
+    await repository.deleteSet(event.setId);
+    return event.workoutId;
   }
 
   String? _rawEventId(String text) => _rawEventIdPattern.firstMatch(text)?.group(1);

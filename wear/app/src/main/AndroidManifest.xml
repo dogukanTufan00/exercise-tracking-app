@@ -4,6 +4,11 @@
     <uses-feature android:name="android.hardware.type.watch" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Antrenman servisi (§15.8): ön plan servisi tür health, fiziksel aktivite ve bildirim. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_HEALTH" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".WatchApp"
@@ -20,6 +25,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault">
             <intent-filter>
@@ -27,5 +33,25 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Antrenman servisi: yalnızca uygulama içinden başlatılır (SessionController). -->
+        <service
+            android:name=".session.WorkoutSessionService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <!-- Saat Tile'ı (§15.8 madde 4). Önizleme görseli: res/drawable/tile_preview.xml. -->
+        <service
+            android:name=".tile.WorkoutTileService"
+            android:exported="true"
+            android:label="@string/tile_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
     </application>
 </manifest>

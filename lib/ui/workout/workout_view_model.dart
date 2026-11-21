@@ -329,18 +329,17 @@ class WorkoutViewModel extends ChangeNotifier {
   // ----------------------------------------------------------- Yardımcılar
 
   /// Ortak hata yakalama. Hata olursa [message] ile [errorMessage] ayarlanır.
-  /// Başarılı bir değiştirici işlemden sonra saate yeni anlık durum yayınlanır.
+  /// Saate yayın repository sarmalayıcısı tarafından yapılır (bkz. §15.8), burada değil.
   Future<void> _run(String message, Future<void> Function() action) async {
     try {
       await action();
-      unawaited(_watchSync?.workoutChanged(_workoutId));
     } catch (_) {
       _errorMessage = message;
       _notify();
     }
   }
 
-  /// Saatten gelen olayla bu antrenman değişti: detayı yeniler. Burada `workoutChanged` çağrılmaz
+  /// Saatten gelen olayla bu antrenman değişti: detayı yeniler. Burada yayın yapılmaz
   /// (yayın döngüsü olmasın).
   void _onWatchUpdate(int workoutId) {
     if (workoutId != _workoutId || _disposed) return;

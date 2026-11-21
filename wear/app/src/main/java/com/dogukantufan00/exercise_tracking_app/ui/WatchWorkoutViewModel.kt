@@ -1,54 +1,51 @@
 package com.dogukantufan00.exercise_tracking_app.ui
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dogukantufan00.exercise_tracking_app.data.PendingStart
 import com.dogukantufan00.exercise_tracking_app.data.RestSettingsStore
-import com.dogukantufan00.exercise_tracking_app.data.WorkoutSyncRepository
+import com.dogukantufan00.exercise_tracking_app.data.WatchProgram
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
+import com.dogukantufan00.exercise_tracking_app.data.WorkoutSyncRepository
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayExercise
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
 import com.dogukantufan00.exercise_tracking_app.domain.REST_DEFAULT_SECONDS
-import com.dogukantufan00.exercise_tracking_app.domain.RestCountdown
 import com.dogukantufan00.exercise_tracking_app.domain.RestProgress
-import com.dogukantufan00.exercise_tracking_app.domain.RestTimer
 import com.dogukantufan00.exercise_tracking_app.domain.stepReps
 import com.dogukantufan00.exercise_tracking_app.domain.stepWeight
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import com.dogukantufan00.exercise_tracking_app.session.RestTimerController
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** Dinlenme sayacının güncelleme aralığı (ms). */
-private const val TICK_MILLIS = 200L
-
 /**
- * Saatteki tüm ekranların ortak durumu: antrenman (repository), hareket giriş taslakları ve dinlenme sayacı.
- * Tek örnek etkinlik düzeyinde tutulur; dinlenme ekranından çıkınca da sayaç ve taslaklar kalır.
- *
- * [clock] monotonik saattir (varsayılan elapsedRealtime); testlerde sahte bir saat verilebilir.
+ * Saatteki tüm ekranların ortak durumu: antrenman ve program (repository), hareket giriş taslakları ve
+ * dinlenme sayacı. Sayaç ekrandan bağımsızdır ve [RestTimerController] tarafından tutulur (§15.8);
+ * bu sınıf yalnızca ona iletir ve durumunu okur.
  */
 class WatchWorkoutViewModel(
     private val repository: WorkoutSyncRepository,
     private val restSettings: RestSettingsStore,
-    private val clock: () -> Long = SystemClock::elapsedRealtime,
+    private val restTimer: RestTimerController,
 ) : ViewModel() {
 
     /** Saatte gösterilen antrenman; etkin antrenman yoksa null. */
     val workout: StateFlow<DisplayWorkout?> = repository.workout
 
-    /** Telefon erişilebilir mi. */
+    /** Telefon şu an erişilebilir mi. */
     val phoneReachable: StateFlow<Boolean> = repository.phoneReachable
+
+    /** Telefonun yayınladığı etkin program; yoksa null. */
+    val program: StateFlow<WatchProgram?> = repository.program
+
+    /** Telefona gönderilmiş, henüz uygulanmamış başlatma isteği; yoksa null. */
+    val pendingStart: StateFlow<PendingStart?> = repository.pendingStart
 
     /** Kayıtlı varsayılan dinlenme süresi (saniye). */
     val restSeconds: StateFlow<Int> = restSettings.restSeconds
@@ -58,20 +55,11 @@ class WatchWorkoutViewModel(
     private val edits = MutableStateFlow<Map<Long, WatchSetValue>>(emptyMap())
     val inputEdits: StateFlow<Map<Long, WatchSetValue>> = edits
 
-    private val countdown = MutableStateFlow<RestCountdown?>(null)
-    private val nowMillis = MutableStateFlow(0L)
+    /** Çalışan dinlenme sayacı (kontrolcüden); yoksa null. */
+    val rest: StateFlow<RestProgress?> = restTimer.rest
 
-    /** Çalışan dinlenme sayacı; yoksa null. */
-    val rest: StateFlow<RestProgress?> = combine(countdown, nowMillis) { current, now ->
-        current?.let { RestTimer.progress(it, now) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    private val restFinishedChannel = Channel<Unit>(Channel.CONFLATED)
-
-    /** Dinlenme bittiğinde bir kez yayılır (ekran titreşim verip geri döner). */
-    val restFinished: Flow<Unit> = restFinishedChannel.receiveAsFlow()
-
-    private var tickJob: Job? = null
+    /** Dinlenme kendiliğinden bittiğinde bir kez yayılır (ekran geri döner; titreşimi kontrolcü yapar). */
+    val restFinished: SharedFlow<Unit> = restTimer.finished
 
     /** Hareketin şu an gösterilen giriş değeri: kullanıcının değişikliği, yoksa telefonun taslağı. */
     fun inputFor(exercise: DisplayExercise): WatchSetValue = edits.value[exercise.workoutExerciseId] ?: exercise.draft
@@ -107,47 +95,29 @@ class WatchWorkoutViewModel(
         viewModelScope.launch { repository.deleteSet(setId) }
     }
 
-    /** Dinlenme sayacını varsayılan süreyle başlatır. */
+    /** Antrenman başlatır ([programDayId] null → boş antrenman). */
+    fun startWorkout(programDayId: Long?) {
+        viewModelScope.launch { repository.startWorkout(programDayId) }
+    }
+
+    /** Bekleyen başlatmayı iptal eder. */
+    fun cancelPendingStart() {
+        viewModelScope.launch { repository.cancelPendingStart() }
+    }
+
+    /** Dinlenme sayacını kayıtlı varsayılan süreyle başlatır (çalışan varsa yerine geçer). */
     fun startRest() {
-        val now = clock()
-        val total = restSeconds.value
-        restFinishedChannel.tryReceive()
-        nowMillis.value = now
-        countdown.value = RestTimer.start(total, now)
-        tickJob?.cancel()
-        tickJob = viewModelScope.launch {
-            while (true) {
-                val current = countdown.value ?: break
-                val tick = clock()
-                nowMillis.value = tick
-                if (RestTimer.isFinished(current, tick)) {
-                    finishRest()
-                    break
-                }
-                delay(TICK_MILLIS)
-            }
-        }
+        restTimer.start(restSeconds.value)
     }
 
     /** Sayacı [deltaSeconds] kadar uzatır ya da kısaltır (yalnızca çalışan sayaç). */
     fun adjustRest(deltaSeconds: Int) {
-        val current = countdown.value ?: return
-        val adjusted = RestTimer.adjust(current, deltaSeconds)
-        val now = clock()
-        nowMillis.value = now
-        if (RestTimer.isFinished(adjusted, now)) {
-            finishRest()
-        } else {
-            countdown.value = adjusted
-        }
+        restTimer.adjust(deltaSeconds)
     }
 
-    /** Sayacı durdurur ve atlar; çıkış ya da "Atla" ile çağrılır. */
+    /** Sayacı titreşimsiz durdurur ve atlar ("Atla"). Ekrandan çıkmak sayacı durdurmaz. */
     fun skipRest() {
-        tickJob?.cancel()
-        tickJob = null
-        countdown.value = null
-        restFinishedChannel.tryReceive()
+        restTimer.skip()
     }
 
     /** Dinlenme süresi ayarını [steps] adım (15 sn) değiştirir ve saklar. */
@@ -155,26 +125,15 @@ class WatchWorkoutViewModel(
         viewModelScope.launch { restSettings.stepRestSeconds(steps) }
     }
 
-    private fun finishRest() {
-        tickJob?.cancel()
-        tickJob = null
-        countdown.value = null
-        restFinishedChannel.trySend(Unit)
-    }
-
     private fun findExercise(exerciseId: Long): DisplayExercise? =
         workout.value?.exercises?.firstOrNull { it.workoutExerciseId == exerciseId }
-
-    override fun onCleared() {
-        tickJob?.cancel()
-        super.onCleared()
-    }
 }
 
-/** [WatchWorkoutViewModel] için fabrika; repository ve ayarlar uygulama sınıfından verilir. */
+/** [WatchWorkoutViewModel] için fabrika; repository, ayarlar ve dinlenme kontrolcüsü uygulama sınıfından verilir. */
 fun watchWorkoutViewModelFactory(
     repository: WorkoutSyncRepository,
     restSettings: RestSettingsStore,
+    restTimer: RestTimerController,
 ) = viewModelFactory {
-    initializer { WatchWorkoutViewModel(repository, restSettings) }
+    initializer { WatchWorkoutViewModel(repository, restSettings, restTimer) }
 }

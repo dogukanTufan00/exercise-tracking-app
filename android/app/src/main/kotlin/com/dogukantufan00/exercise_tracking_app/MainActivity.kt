@@ -23,6 +23,9 @@ class MainActivity : FlutterActivity() {
                 "publishSnapshot" -> publishSnapshot(call.arguments as? String, result)
                 "clearSnapshot" -> clearSnapshot(result)
                 "publishTheme" -> publishTheme(call.arguments as? String, result)
+                "publishProgram" -> publishProgram(call.arguments as? String, result)
+                "clearProgram" -> clearProgram(result)
+                "publishApplied" -> publishApplied(call.arguments as? String, result)
                 "drainEvents" -> result.success(WearEventQueue.list())
                 "ackEvents" -> {
                     val ids = (call.arguments as? List<*>)?.filterIsInstance<String>().orEmpty()
@@ -88,6 +91,50 @@ class MainActivity : FlutterActivity() {
         result.success(null)
     }
 
+    /** Etkin programın JSON'unu `/program/active` DataItem'ına yazar (§15.8). Hata yalnızca günlüğe yazılır. */
+    private fun publishProgram(json: String?, result: MethodChannel.Result) {
+        if (json == null) {
+            result.error("bad_args", "publishProgram için metin bekleniyordu", null)
+            return
+        }
+        val request = PutDataMapRequest.create(PROGRAM_PATH).run {
+            dataMap.putString(JSON_KEY, json)
+            asPutDataRequest().setUrgent()
+        }
+        Wearable.getDataClient(this)
+            .putDataItem(request)
+            .addOnFailureListener { e -> Log.w(TAG, "Program yazılamadı", e) }
+        result.success(null)
+    }
+
+    /** `/program/active` DataItem'ını siler (etkin program yok). Hata yalnızca günlüğe yazılır. */
+    private fun clearProgram(result: MethodChannel.Result) {
+        val uri = Uri.Builder()
+            .scheme(PutDataRequest.WEAR_URI_SCHEME)
+            .path(PROGRAM_PATH)
+            .build()
+        Wearable.getDataClient(this)
+            .deleteDataItems(uri)
+            .addOnFailureListener { e -> Log.w(TAG, "Program silinemedi", e) }
+        result.success(null)
+    }
+
+    /** İşlenmiş olay id'lerinin JSON'unu `/events/applied` DataItem'ına yazar (§15.8). Hata yalnızca günlüğe yazılır. */
+    private fun publishApplied(json: String?, result: MethodChannel.Result) {
+        if (json == null) {
+            result.error("bad_args", "publishApplied için metin bekleniyordu", null)
+            return
+        }
+        val request = PutDataMapRequest.create(APPLIED_PATH).run {
+            dataMap.putString(JSON_KEY, json)
+            asPutDataRequest().setUrgent()
+        }
+        Wearable.getDataClient(this)
+            .putDataItem(request)
+            .addOnFailureListener { e -> Log.w(TAG, "İşlenen olaylar yazılamadı", e) }
+        result.success(null)
+    }
+
     private companion object {
         const val TAG = "WearBridge"
         const val METHOD_CHANNEL = "exercise_tracker/wear"
@@ -95,5 +142,8 @@ class MainActivity : FlutterActivity() {
         const val SNAPSHOT_PATH = "/workout/active"
         const val THEME_PATH = "/settings/theme"
         const val THEME_KEY = "themeId"
+        const val PROGRAM_PATH = "/program/active"
+        const val APPLIED_PATH = "/events/applied"
+        const val JSON_KEY = "json"
     }
 }

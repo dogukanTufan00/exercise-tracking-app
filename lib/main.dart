@@ -14,6 +14,8 @@ import 'data/repositories/sqlite_workout_repository.dart';
 import 'data/repositories/workout_repository.dart';
 import 'data/services/backup_file_service.dart';
 import 'data/services/database_service.dart';
+import 'data/watch/watch_aware_program_repository.dart';
+import 'data/watch/watch_aware_workout_repository.dart';
 import 'data/watch/watch_sync_service.dart';
 import 'data/watch/watch_sync_store.dart';
 import 'data/watch/wear_channel.dart';
@@ -35,8 +37,10 @@ Future<void> main() async {
   await themeController.load();
 
   // Saat eşlemesi: saatten gelen olaylar burada işlenir (bkz. docs/ARCHITECTURE.md §15).
+  // Servis sarılmamış repository'leri kullanır; sağlayıcılara sarılmış olanlar verilir (§15.8).
   final watchSyncService = WatchSyncService(
     repository: workoutRepository,
+    programRepository: programRepository,
     channel: MethodChannelWearChannel(),
     store: PrefsWatchSyncStore(),
     fallbackTitle: formatWorkoutDate,
@@ -55,9 +59,9 @@ Future<void> main() async {
 
   runApp(
     ExerciseTrackerApp(
-      workoutRepository: workoutRepository,
+      workoutRepository: WatchAwareWorkoutRepository(workoutRepository, watchSyncService),
       measurementRepository: measurementRepository,
-      programRepository: programRepository,
+      programRepository: WatchAwareProgramRepository(programRepository, watchSyncService),
       settingsRepository: settingsRepository,
       themeController: themeController,
       backupFileService: DeviceBackupFileService(),

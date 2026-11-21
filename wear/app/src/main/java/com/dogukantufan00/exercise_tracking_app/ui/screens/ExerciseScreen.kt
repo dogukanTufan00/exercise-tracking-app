@@ -37,6 +37,7 @@ import com.dogukantufan00.exercise_tracking_app.domain.formatSet
 import com.dogukantufan00.exercise_tracking_app.domain.formatTarget
 import com.dogukantufan00.exercise_tracking_app.domain.formatWeight
 import com.dogukantufan00.exercise_tracking_app.ui.WatchWorkoutViewModel
+import com.dogukantufan00.exercise_tracking_app.ui.components.RestIndicator
 import com.dogukantufan00.exercise_tracking_app.ui.components.StepperField
 
 /** Ağırlık ve tekrar alanlarından hangisinin döner çerçeveyle değiştiği. */
@@ -52,6 +53,7 @@ fun ExerciseScreen(
     workoutExerciseId: Long,
     onSetAdded: () -> Unit,
     onMissing: () -> Unit,
+    onOpenRest: () -> Unit = {},
 ) {
     val workout by viewModel.workout.collectAsStateWithLifecycle()
     val edits by viewModel.inputEdits.collectAsStateWithLifecycle()
@@ -65,6 +67,7 @@ fun ExerciseScreen(
             exercise = exercise,
             input = edits[exercise.workoutExerciseId] ?: exercise.draft,
             onSetAdded = onSetAdded,
+            onOpenRest = onOpenRest,
         )
     }
 }
@@ -75,11 +78,13 @@ private fun ExerciseContent(
     exercise: DisplayExercise,
     input: WatchSetValue,
     onSetAdded: () -> Unit,
+    onOpenRest: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(InputField.WEIGHT) }
     var pendingDeleteId by remember { mutableStateOf<Long?>(null) }
     val listState = rememberScalingLazyListState()
     val exerciseId = exercise.workoutExerciseId
+    val rest by viewModel.rest.collectAsStateWithLifecycle()
 
     ScreenScaffold(
         scrollState = listState,
@@ -102,6 +107,9 @@ private fun ExerciseContent(
                 ListHeader {
                     Text(text = exercise.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
+            }
+            rest?.let { progress ->
+                item { RestIndicator(rest = progress, onClick = onOpenRest) }
             }
             exercise.target?.let { target ->
                 item {

@@ -112,4 +112,64 @@ void main() {
 
     expect(() => WatchEvent.fromJson(json), throwsFormatException);
   });
+
+  test('gün seçili startWorkout olayı workoutId olmadan okunur ve aynen yazılır', () {
+    final original = <String, Object?>{
+      'protocol': 1,
+      'eventId': 'start-1',
+      'type': 'startWorkout',
+      'programDayId': 11,
+      'createdAt': '2026-11-22T18:30:00.000',
+    };
+
+    final event = WatchEvent.fromJson(original);
+
+    expect(event, isA<StartWorkoutEvent>());
+    expect((event as StartWorkoutEvent).programDayId, 11);
+    expect(event.toJson(), equals(original));
+  });
+
+  test('boş startWorkout olayında programDayId null kalır', () {
+    final original = <String, Object?>{
+      'protocol': 1,
+      'eventId': 'start-2',
+      'type': 'startWorkout',
+      'programDayId': null,
+      'createdAt': '2026-11-22T18:30:00.000',
+    };
+
+    final event = WatchEvent.fromJson(original) as StartWorkoutEvent;
+
+    expect(event.programDayId, isNull);
+    expect(event.toJson(), equals(original));
+  });
+
+  test('program JSON gidiş-dönüş aynen korunur', () {
+    final original = <String, Object?>{
+      'protocol': 1,
+      'programId': 3,
+      'name': 'PPL',
+      'days': [
+        {
+          'dayId': 11,
+          'name': 'Push A',
+          'weekday': 1,
+          'exercises': ['Bench Press', 'Incline DB Press'],
+        },
+        {
+          'dayId': 12,
+          'name': 'Serbest',
+          'weekday': null,
+          'exercises': <Object?>[],
+        },
+      ],
+    };
+
+    final program = WatchProgram.fromJson(original);
+
+    expect(program.name, 'PPL');
+    expect(program.days.first.exercises, ['Bench Press', 'Incline DB Press']);
+    expect(program.days.last.weekday, isNull);
+    expect(program.toJson(), equals(original));
+  });
 }

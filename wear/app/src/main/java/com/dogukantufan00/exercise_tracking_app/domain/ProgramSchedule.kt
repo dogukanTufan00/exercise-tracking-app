@@ -6,8 +6,8 @@ import java.time.DayOfWeek
 
 /**
  * Bugünün önerilen program günü: telefondaki `suggestedDay` ile aynı kural (lib/domain/program_schedule.dart):
- * weekday'i [today] olan ilk gün; yoksa null. [today].value: 1 = Pazartesi … 7 = Pazar. Saf Kotlin.
+ * weekday'i [today] olan ilk gün; yoksa null. `weekday` null olan gün asla önerilmez.
+ * [today].value: 1 = Pazartesi … 7 = Pazar, programdaki `weekday` ile aynı ölçektir. Saf Kotlin.
  */
-fun suggestedDay(program: WatchProgram, today: DayOfWeek): WatchProgramDay? {
-    TODO("Ajan BC uygular")
-}
+fun suggestedDay(program: WatchProgram, today: DayOfWeek): WatchProgramDay? =
+    program.days.firstOrNull { it.weekday == today.value }

@@ -87,4 +87,10 @@ class WatchFormatTest {
         assertEquals(1, stepReps(1, -1))
         assertEquals(1, stepReps(2, -5))
     }
+
+    @Test
+    fun formatExerciseCount_usesHareketSuffix() {
+        assertEquals("5 hareket", formatExerciseCount(5))
+        assertEquals("0 hareket", formatExerciseCount(0))
+    }
 }

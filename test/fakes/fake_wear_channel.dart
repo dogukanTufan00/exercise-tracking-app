@@ -21,6 +21,15 @@ class FakeWearChannel implements WearChannel {
   /// Yayınlanan tema adları (`AppThemeId.name`), yayın sırasıyla.
   final List<String> publishedThemes = [];
 
+  /// Yayınlanan program JSON'ları, yayın sırasıyla.
+  final List<String> programs = [];
+
+  /// `clearProgram` çağrı sayısı.
+  int clearProgramCount = 0;
+
+  /// Yayınlanan `/events/applied` JSON'ları, yayın sırasıyla.
+  final List<String> appliedPayloads = [];
+
   final StreamController<void> _events = StreamController<void>.broadcast();
 
   /// Son yayınlanan anlık durumu çözümlenmiş JSON olarak döndürür; hiç yoksa `null`.
@@ -41,6 +50,21 @@ class FakeWearChannel implements WearChannel {
   @override
   Future<void> clearSnapshot() async {
     clearCount++;
+  }
+
+  @override
+  Future<void> publishProgram(String json) async {
+    programs.add(json);
+  }
+
+  @override
+  Future<void> clearProgram() async {
+    clearProgramCount++;
+  }
+
+  @override
+  Future<void> publishApplied(String json) async {
+    appliedPayloads.add(json);
   }
 
   @override

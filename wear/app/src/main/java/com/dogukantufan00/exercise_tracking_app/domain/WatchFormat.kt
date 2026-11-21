@@ -39,6 +39,9 @@ fun formatPrevious(weightKg: Double, reps: Int): String = "Geçen: ${formatSet(w
 fun formatSetProgress(doneSets: Int, targetSets: Int?): String =
     if (targetSets == null) "$doneSets set" else "$doneSets/$targetSets set"
 
+/** Program gününün hareket sayısı: "5 hareket". */
+fun formatExerciseCount(count: Int): String = "$count hareket"
+
 /** Saniyeyi "m:ss" biçimine çevirir: 65 → "1:05". Negatif değerler 0 sayılır. */
 fun formatDuration(totalSeconds: Int): String {
     val seconds = max(0, totalSeconds)

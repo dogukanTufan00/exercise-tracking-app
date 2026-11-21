@@ -29,14 +29,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
 import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * [WorkoutSyncRepository]'nin Data Layer gerçeklemesi (bkz. docs/ARCHITECTURE.md §15.4 ve §15.6).
+ * [WorkoutSyncRepository]'nin Data Layer gerçeklemesi (bkz. docs/ARCHITECTURE.md §15.4, §15.6 ve §15.8).
  *
- * Telefonun anlık durumunu DataItem'dan okur; saatteki olayları ([PendingEventStore]) telefona MessageClient ile gönderir.
- * Olay, telefon onaylayana kadar kuyrukta kalır; tekrar göndermek güvenlidir.
+ * Telefonun anlık durumunu, etkin programını ve işlenmiş olay id'lerini DataItem'lardan okur; saatteki olayları
+ * ([PendingEventStore]) telefona MessageClient ile gönderir. Olay, telefon onaylayana kadar kuyrukta kalır;
+ * tekrar göndermek güvenlidir.
  */
 class PhoneSyncRepository(
     context: Context,
@@ -51,6 +53,8 @@ class PhoneSyncRepository(
     private val flushMutex = Mutex()
 
     private val snapshotFlow = MutableStateFlow<WatchSnapshot?>(null)
+    private val programFlow = MutableStateFlow<WatchProgram?>(null)
+    private val appliedFlow = MutableStateFlow<Set<String>>(emptySet())
     private val reachableFlow = MutableStateFlow(false)
 
     override val workout: StateFlow<DisplayWorkout?> =
@@ -59,12 +63,20 @@ class PhoneSyncRepository(
 
     override val phoneReachable: StateFlow<Boolean> = reachableFlow.asStateFlow()
 
+    override val program: StateFlow<WatchProgram?> = programFlow.asStateFlow()
+
+    override val pendingStart: StateFlow<PendingStart?> =
+        combine(store.events, programFlow) { events, currentProgram -> pendingStartOf(events, currentProgram) }
+            .stateIn(scope, SharingStarted.Eagerly, null)
+
     init {
         dataClient.addListener(DataClient.OnDataChangedListener { buffer ->
             try {
                 buffer.forEach { event ->
-                    if (event.dataItem.uri.path == SNAPSHOT_PATH) {
-                        handleSnapshotEvent(event)
+                    when (event.dataItem.uri.path) {
+                        SNAPSHOT_PATH -> handleSnapshotEvent(event)
+                        PROGRAM_PATH -> handleProgramEvent(event)
+                        APPLIED_PATH -> handleAppliedEvent(event)
                     }
                 }
             } finally {
@@ -82,7 +94,7 @@ class PhoneSyncRepository(
             PHONE_CAPABILITY,
         )
 
-        scope.launch { loadCurrentSnapshot() }
+        scope.launch { loadCurrentState() }
         scope.launch { refreshReachable() }
         scope.launch {
             while (true) {
@@ -120,48 +132,118 @@ class PhoneSyncRepository(
         scope.launch { flush() }
     }
 
-    /** Anlık durum DataItem'ını uygulamanın açılışında okur. */
-    private suspend fun loadCurrentSnapshot() {
-        val snapshot = withContext(Dispatchers.IO) {
-            runCatching {
-                val buffer = dataClient.getDataItems(snapshotUri()).await()
-                try {
-                    buffer.firstOrNull()?.let { decodeSnapshot(it) }
-                } finally {
-                    buffer.release()
-                }
-            }.getOrNull()
+    override suspend fun startWorkout(programDayId: Long?) {
+        store.update { events ->
+            // En fazla bir bekleyen başlatma: önceki (henüz uygulanmamış) istek yerine yeni olay yazılır.
+            events.filterNot { it is StartWorkoutEvent } + StartWorkoutEvent(
+                eventId = UUID.randomUUID().toString(),
+                createdAt = LocalDateTime.now().toString(),
+                programDayId = programDayId,
+            )
         }
-        if (snapshot != null) applySnapshot(snapshot)
+        scope.launch { flush() }
     }
 
-    /** Veri değişikliğini işler; çözülemeyen yeni veri öncekini korur. Liste Data Layer tamponu serbest bırakılmadan önce okunur. */
+    override suspend fun cancelPendingStart() {
+        store.update { events -> events.filterNot { it is StartWorkoutEvent } }
+    }
+
+    /** Anlık durum, program ve işlenmiş olaylar uygulamanın açılışında okunur. */
+    private suspend fun loadCurrentState() {
+        readItem(SNAPSHOT_PATH, ::decodeSnapshot)?.let { snapshotFlow.value = it }
+        readItem(PROGRAM_PATH, ::decodeProgram)?.let { programFlow.value = it }
+        readItem(APPLIED_PATH, ::decodeApplied)?.let { appliedFlow.value = it }
+        pruneAsync()
+    }
+
+    /** Veri değişikliğini işler; çözülemeyen yeni veri öncekini korur. Silme anlık durumu temizler. */
     private fun handleSnapshotEvent(event: DataEvent) {
         if (event.type == DataEvent.TYPE_DELETED) {
             snapshotFlow.value = null
-            return
+        } else {
+            decodeSnapshot(event.dataItem)?.let { snapshotFlow.value = it }
         }
-        decodeSnapshot(event.dataItem)?.let { applySnapshot(it) }
+        pruneAsync()
     }
 
-    private fun applySnapshot(snapshot: WatchSnapshot) {
-        snapshotFlow.value = snapshot
-        // Telefonun işlediği olaylar kuyruktan çıkarılır; aksi halde telefon bunları zamanla unutup tekrar uygulayabilir.
-        val applied = snapshot.appliedEventIds.toSet()
+    /** Program değişince günceller; silinmesi programı kaldırır; bozuk veri öncekini korur. */
+    private fun handleProgramEvent(event: DataEvent) {
+        if (event.type == DataEvent.TYPE_DELETED) {
+            programFlow.value = null
+            return
+        }
+        decodeProgram(event.dataItem)?.let { programFlow.value = it }
+    }
+
+    /** Telefonun işlenmiş olay listesi; silinmesi ya da bozuk veri öncekini korur. */
+    private fun handleAppliedEvent(event: DataEvent) {
+        if (event.type == DataEvent.TYPE_DELETED) return
+        decodeApplied(event.dataItem)?.let { applied ->
+            appliedFlow.value = applied
+            pruneAsync()
+        }
+    }
+
+    /**
+     * Bekleyen kuyruğu budar (§15.8):
+     * - id'si uygulanmış olaylar (anlık durum veya `/events/applied`) silinir;
+     * - anlık durum varsa, ona ait olmayan set olayları silinir;
+     * - StartWorkoutEvent yalnızca uygulanınca silinir (iptal [cancelPendingStart] ile).
+     */
+    private fun pruneAsync() {
         scope.launch {
-            // Başka antrenmana ait olaylar da düşer: telefon onları zaten uygulamaz.
             store.update { events ->
-                events.filterNot { it.eventId in applied || it.workoutId != snapshot.workoutId }
+                val snapshot = snapshotFlow.value
+                val applied = appliedFlow.value + (snapshot?.appliedEventIds ?: emptyList())
+                events.filterNot { event ->
+                    when (event) {
+                        is StartWorkoutEvent -> event.eventId in applied
+                        is AddSetEvent ->
+                            event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
+                        is DeleteSetEvent ->
+                            event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
+                    }
+                }
             }
         }
     }
 
-    /** DataItem'ı çözer; bozuk veya farklı protokol sürümü için null. */
-    private fun decodeSnapshot(item: DataItem): WatchSnapshot? {
+    /** Bekleyen başlatmayı ekran için hazırlar; gün adı programda yoksa null. */
+    private fun pendingStartOf(events: List<WatchEvent>, currentProgram: WatchProgram?): PendingStart? {
+        val start = events.filterIsInstance<StartWorkoutEvent>().firstOrNull() ?: return null
+        val dayName = start.programDayId?.let { dayId ->
+            currentProgram?.days?.firstOrNull { it.dayId == dayId }?.name
+        }
+        return PendingStart(eventId = start.eventId, programDayId = start.programDayId, dayName = dayName)
+    }
+
+    /** Bir DataItem'ı yoldan okur; yoksa ya da çözülemezse null. */
+    private suspend fun <T> readItem(path: String, decode: (DataItem) -> T?): T? = withContext(Dispatchers.IO) {
+        runCatching {
+            val buffer = dataClient.getDataItems(itemUri(path)).await()
+            try {
+                buffer.firstOrNull()?.let(decode)
+            } finally {
+                buffer.release()
+            }
+        }.getOrNull()
+    }
+
+    private fun decodeSnapshot(item: DataItem): WatchSnapshot? =
+        decodeProtocolJson(item, WatchSnapshot.serializer()) { it.protocol }
+
+    private fun decodeProgram(item: DataItem): WatchProgram? =
+        decodeProtocolJson(item, WatchProgram.serializer()) { it.protocol }
+
+    private fun decodeApplied(item: DataItem): Set<String>? =
+        decodeProtocolJson(item, WatchApplied.serializer()) { it.protocol }?.appliedEventIds?.toSet()
+
+    /** DataItem'daki JSON'u çözer; bozuk veya farklı protokol sürümü için null. */
+    private fun <T> decodeProtocolJson(item: DataItem, serializer: KSerializer<T>, protocolOf: (T) -> Int): T? {
         return runCatching {
             val json = DataMapItem.fromDataItem(item).dataMap.getString(SNAPSHOT_JSON_KEY) ?: return null
-            ProtocolJson.decodeFromString(WatchSnapshot.serializer(), json)
-        }.getOrNull()?.takeIf { it.protocol == WATCH_PROTOCOL_VERSION }
+            ProtocolJson.decodeFromString(serializer, json)
+        }.getOrNull()?.takeIf { protocolOf(it) == WATCH_PROTOCOL_VERSION }
     }
 
     /** Telefon yeteneğini sorgular ve [reachableFlow]'u günceller. */
@@ -203,9 +285,9 @@ class PhoneSyncRepository(
         }
     }
 
-    private fun snapshotUri(): Uri = Uri.Builder()
+    private fun itemUri(path: String): Uri = Uri.Builder()
         .scheme(PutDataRequest.WEAR_URI_SCHEME)
-        .path(SNAPSHOT_PATH)
+        .path(path)
         .build()
 
     private companion object {

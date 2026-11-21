@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:exercise_tracking_app/data/models/models.dart';
+import 'package:exercise_tracking_app/data/watch/watch_aware_workout_repository.dart';
 import 'package:exercise_tracking_app/data/watch/watch_sync_service.dart';
 import 'package:exercise_tracking_app/ui/workout/workout_view_model.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -671,6 +672,7 @@ void main() {
       store = FakeWatchSyncStore();
       service = WatchSyncService(
         repository: repo,
+        programRepository: FakeProgramRepository(repo),
         channel: channel,
         store: store,
         fallbackTitle: (_) => 'Tarih',
@@ -701,7 +703,12 @@ void main() {
     test('set eklenince anlık durum yeniden yayınlanır', () async {
       final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 30));
       final we = await repo.addExerciseToWorkout(workout.id, bench.id);
-      final vm = WorkoutViewModel(repo, workout.id, watchSync: service);
+      // Saate yayın sarmalayıcıdan gelir (§15.8); ViewModel doğrudan yayınlamaz.
+      final vm = WorkoutViewModel(
+        WatchAwareWorkoutRepository(repo, service),
+        workout.id,
+        watchSync: service,
+      );
       await vm.load();
       await settle();
 
