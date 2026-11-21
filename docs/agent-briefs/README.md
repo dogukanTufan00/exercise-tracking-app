@@ -24,6 +24,19 @@ Mimar/orkestratör (Claude Opus) işi parçalara böler, her ajana bir talimat v
 7. **Bitirdiğinde rapor ver:** oluşturduğun/değiştirdiğin dosyalar, `analyze` ve `test` çıktılarının son satırları
    (aynen), varsa emin olmadığın kararlar ve sözleşmeyle ilgili notlar.
 
+## Kotlin ortak kuralları (saat uygulaması ve telefonun Kotlin köprüsü, dalga 13+)
+
+1. Önce `docs/ARCHITECTURE.md` §15'i oku. Protokol iki tarafta birebir aynıdır; sözleşme dosyalarını değiştirme.
+2. **Yasak:** `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`'e yeni bağımlılık/eklenti eklemek
+   (görevin açıkça istemiyorsa), her türlü `git` komutu, `gradlew clean`. Gereken bir kütüphane yoksa raporda yaz.
+3. Saat projesinde doğrulama (`wear/` klasöründe, PowerShell): `.\gradlew.bat testDebugUnitTest --offline --console=plain`
+   ve `.\gradlew.bat assembleDebug --offline --console=plain` → "BUILD SUCCESSFUL". Başka ajan da Gradle çalıştırıyorsa
+   kilit beklemesi normaldir.
+4. Stil: resmi Kotlin kod stili, `val` öncelikli, değişmez veri sınıfları, coroutine + `StateFlow`; `GlobalScope` ve
+   `runBlocking` (testler dışında) yok. Kısa Türkçe doc yorumları (`/** */`); sınıf/değişken adları İngilizce,
+   kullanıcıya görünen metinler Türkçe. Saf mantık `domain/` altında, Android import etmez ve JVM testlidir.
+5. Rapor: dosyalar, komutların son satırları (aynen), emin olmadığın kararlar.
+
 ## Dalga 2 ortak kuralları (ekranlar)
 
 **Uygulamada hazır olanlar** (değiştirme, kullan):
@@ -115,3 +128,7 @@ await tester.pumpAndSettle();
 | 12a | Z1 | [Hareket değiştirme ve birleştirme, veri katmanı (#11, #12)](wave12-z1-swap-merge-data.md) |
 | 12b | Z2 | [Antrenmanda hareketi değiştirme (#11)](wave12-z2-swap-ui.md) |
 | 12b | Z3 | [Hareket birleştirme (#12)](wave12-z3-merge-ui.md) |
+| 13 | AA | [Telefonda saat eşlemesi, Dart (#24)](wave13-aa-phone-watch-sync.md) |
+| 13 | AB | [Telefonun Kotlin köprüsü (#24)](wave13-ab-phone-wear-bridge.md) |
+| 13 | AC | [Saat uygulamasının veri katmanı (#24)](wave13-ac-watch-data.md) |
+| 13 | AD | [Saat uygulamasının ekranları (#24)](wave13-ad-watch-ui.md) |

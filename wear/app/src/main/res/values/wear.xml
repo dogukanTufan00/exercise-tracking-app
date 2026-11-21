@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Data Layer yeteneği (bkz. docs/ARCHITECTURE.md §15.4). Telefon "exercise_tracker_phone" duyurur. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities">
+        <item>exercise_tracker_watch</item>
+    </string-array>
+</resources>

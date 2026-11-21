@@ -1,0 +1,105 @@
+package com.dogukantufan00.exercise_tracking_app.data
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+/*
+ * Saat ile telefon arasındaki protokolün (sürüm 1) Kotlin modelleri (bkz. docs/ARCHITECTURE.md §15.4).
+ * Dart karşılığı: lib/data/watch/watch_protocol.dart. İki dosya birebir aynı JSON'u üretmeli ve okumalıdır.
+ * Kimlikler Dart'taki int'e karşılık Long'dur.
+ */
+
+/** Protokol sürümü. Farklı sürümdeki olay ve anlık durumlar yok sayılır. */
+const val WATCH_PROTOCOL_VERSION = 1
+
+/** Anlık durumun yayınlandığı DataItem yolu; JSON, DataMap'te [SNAPSHOT_JSON_KEY] anahtarındadır. */
+const val SNAPSHOT_PATH = "/workout/active"
+const val SNAPSHOT_JSON_KEY = "json"
+
+/** Saatin olay gönderdiği mesaj yolu. */
+const val EVENT_PATH = "/event"
+
+/** Data Layer yetenekleri (res/values/wear.xml). */
+const val PHONE_CAPABILITY = "exercise_tracker_phone"
+const val WATCH_CAPABILITY = "exercise_tracker_watch"
+
+/** Protokolün tek JSON yapılandırması: olay türü `type` alanında, bilinmeyen alanlar yok sayılır. */
+val ProtocolJson: Json = Json {
+    classDiscriminator = "type"
+    ignoreUnknownKeys = true
+    encodeDefaults = true
+    explicitNulls = true
+}
+
+@Serializable
+data class WatchSetValue(val weightKg: Double, val reps: Int)
+
+@Serializable
+data class WatchTarget(val sets: Int, val reps: Int, val weightKg: Double?)
+
+/** Telefonda kayıtlı bir set. */
+@Serializable
+data class WatchSet(val id: Long, val setNumber: Int, val weightKg: Double, val reps: Int)
+
+@Serializable
+data class WatchExercise(
+    val workoutExerciseId: Long,
+    val name: String,
+    val target: WatchTarget?,
+    val sets: List<WatchSet>,
+    /** Telefonun önerdiği bir sonraki set. */
+    val draft: WatchSetValue,
+    /** "Geçen sefer" setleri; boş olabilir. */
+    val previous: List<WatchSetValue>,
+)
+
+/** Telefonun yayınladığı anlık durum. */
+@Serializable
+data class WatchSnapshot(
+    val protocol: Int = WATCH_PROTOCOL_VERSION,
+    val workoutId: Long,
+    /** Antrenman başlığı; yoksa telefonun gösterdiği tarih metni. */
+    val title: String,
+    /** Saat dilimsiz ISO 8601 yerel saat; saat yalnızca gösterir, hesap yapmaz. */
+    val startedAt: String,
+    /** Telefonun işlediği son en fazla 50 olayın id'si. */
+    val appliedEventIds: List<String>,
+    /** position sırasıyla. */
+    val exercises: List<WatchExercise>,
+)
+
+/** Saatten telefona giden olay. JSON'daki `type` alanı alt sınıfı belirler. */
+@Serializable
+sealed class WatchEvent {
+    abstract val protocol: Int
+    abstract val eventId: String
+    abstract val workoutId: Long
+
+    /** Saat dilimsiz ISO 8601 yerel saat (ör. LocalDateTime.now().toString()). */
+    abstract val createdAt: String
+}
+
+/** Saatte "Set tamam" denildi. */
+@Serializable
+@SerialName("addSet")
+data class AddSetEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    override val workoutId: Long,
+    override val createdAt: String,
+    val workoutExerciseId: Long,
+    val weightKg: Double,
+    val reps: Int,
+) : WatchEvent()
+
+/** Telefonun onayladığı bir set silindi. */
+@Serializable
+@SerialName("deleteSet")
+data class DeleteSetEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    override val workoutId: Long,
+    override val createdAt: String,
+    val setId: Long,
+) : WatchEvent()

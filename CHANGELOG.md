@@ -7,6 +7,9 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+### Eklendi
+- Galaxy Watch (Wear OS) eşlikçi uygulamasının mimarisi ve iskeleti (`wear/`, ARCHITECTURE §15) (#24).
+
 ## [0.5.0] - 2026-10-23
 
 Düzeltme araçları sürümü.

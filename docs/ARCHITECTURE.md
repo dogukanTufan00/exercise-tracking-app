@@ -370,3 +370,138 @@ Sıra (her madde bir GitHub issue'su):
 - Veriye `ProgramRepository` ile erişilir (`lib/data/repositories/program_repository.dart`).
 - Yedek biçimi 3 programları içerir (hareketlere adla başvurarak); antrenmanların program bağlantısı ve kopyalanmış
   hedefleri yedeğe girmez.
+
+## 15. Saat uygulaması (Wear OS)
+
+Galaxy Watch (Wear OS 3+) için telefon uygulamasıyla birlikte çalışan bir eşlikçi uygulama. Kararlar (2026-11-21):
+
+- **Telefondaki SQLite tek doğru kaynaktır.** Saatin veritabanı yoktur; saat bir "uzaktan kumanda + sensör"dür.
+  Saat olay gönderir ("set eklendi"), kaydı telefon yazar. Böylece iki veritabanını eşitleme (çakışma çözümü) gerekmez.
+- **Saat tarafı Kotlin + Compose for Wear OS** ile yazılır (`wear/`, bağımsız Gradle projesi). Flutter'ın Wear OS
+  desteği (Tile, ortam modu, Health Services) yetersiz.
+- **İletişim: Wearable Data Layer API** (`play-services-wearable`). Hazır Flutter paketi kullanılmaz; telefonda küçük
+  bir Kotlin köprüsü ile Dart arasında `MethodChannel` + `EventChannel` vardır.
+- **Aynı kimlik ve imza:** Data Layer yalnızca aynı paket adı ve aynı imza anahtarıyla derlenmiş uygulamaları eşler.
+  Saat uygulamasının `applicationId`'si de `com.dogukantufan00.exercise_tracking_app`'tir (genel `io.github…`
+  kuralının istisnası: telefon uygulaması bu kimlikle yayında) ve release'i aynı keystore ile imzalanır (§11).
+  Saatin `versionCode`'u telefonla çakışmasın diye `1000 + N` aralığındadır.
+
+### 15.1 Fazlar
+
+| Faz | Kapsam | Issue |
+|---|---|---|
+| 1 | Antrenman kumandası: telefonda açık antrenman saatte görünür; saatte ağırlık/tekrar girip set ekleme ve silme; saatte dinlenme sayacı + titreşim | #24 |
+| 2 | Saatten antrenman başlatma (program günü seçerek), bugünün programını gösteren Tile, Ongoing Activity ve ekran kapalıyken de güvenilir dinlenme sayacı | #25 |
+| 3 | Health Services: nabız, kalori, antrenman süresi (#22 ile birlikte); saklamak için şema 4 | #26 |
+| Sonra | Telefonsuz çalışan saat (iki yönlü eşitleme gerektirir) | — |
+
+### 15.2 Bileşenler
+
+```
+Telefon (Flutter)
+  WorkoutViewModel ──(antrenman değişti)──► WatchSyncService ◄── WearChannel (abstract, Dart)
+  WatchSyncService ── WorkoutRepository (set ekle/sil) + buildWatchSnapshot (anlık durum)
+                                                   │ MethodChannel "exercise_tracker/wear"
+                                                   │ EventChannel  "exercise_tracker/wear/events"
+  WearBridge (Kotlin) ── PhoneWearListenerService (mesajları alır, yerel kuyruğa yazar)
+                                                   │ Data Layer (Bluetooth / Wi-Fi)
+Saat (Kotlin)
+  PhoneSyncRepository (DataItem dinler, olay kuyruğu, gönderim) ──► WatchUiState (StateFlow)
+  Ekranlar ── WatchWorkoutViewModel ── dinlenme sayacı + titreşim
+```
+
+### 15.3 Etkin antrenman
+
+Telefonda bilinçli bir "antrenmanı bitir" adımı yoktur; bu yüzden:
+
+- **Etkin antrenman = Antrenman ekranında en son açılan antrenman.** Ekran açılınca `WatchSyncService.setActiveWorkout(id)`
+  çağrılır; id `shared_preferences`'ta saklanır (uygulama yeniden başlarsa da bilinir).
+- Ekrandan çıkmak etkinliği bitirmez (telefon cepteyken yanlışlıkla geri tuşu saati boşaltmasın).
+- Antrenman silinirse ya da başlangıcının üzerinden **12 saat** geçmişse etkin antrenman temizlenir ve saat boş durumu
+  gösterir. Bu kontrol her yayından önce ve uygulama açılışında yapılır.
+
+### 15.4 Protokol (sürüm 1)
+
+Tüm yükler UTF-8 JSON'dur; alan adları camelCase. Dart tarafı `lib/data/watch/watch_protocol.dart`, Kotlin tarafı
+`wear/app/src/main/java/com/dogukantufan00/exercise_tracking_app/data/WatchProtocol.kt`; ikisi **birebir aynı** olmalıdır.
+Tarihler saat dilimsiz ISO 8601 yerel saattir (`DateTime.toIso8601String()`).
+
+**Telefon → saat: anlık durum (DataItem, yol `/workout/active`).** Telefon her değişiklikte tamamını yeniden yazar
+(`setUrgent`). Etkin antrenman yoksa DataItem silinir. DataItem kalıcıdır: saat bağlantı koptuktan sonra
+geri geldiğinde son durumu kendiliğinden alır. JSON, DataMap'te `json` anahtarında tek metin olarak durur.
+
+```json
+{
+  "protocol": 1,
+  "workoutId": 42,
+  "title": "Push A",
+  "startedAt": "2026-11-21T18:30:00.000",
+  "appliedEventIds": ["5b0e…", "…"],
+  "exercises": [
+    {
+      "workoutExerciseId": 101,
+      "name": "Bench Press",
+      "target": { "sets": 3, "reps": 10, "weightKg": 40.0 },
+      "sets": [ { "id": 900, "setNumber": 1, "weightKg": 40.0, "reps": 10 } ],
+      "draft": { "weightKg": 40.0, "reps": 10 },
+      "previous": [ { "weightKg": 37.5, "reps": 10 } ]
+    }
+  ]
+}
+```
+
+- `title`: antrenman başlığı, yoksa telefonun gösterdiği tarih metni (saat biçimlendirme yapmaz).
+- `target`, `target.weightKg`: yoksa `null`. `previous`: "geçen sefer" setleri (boş olabilir). `exercises` sıralıdır (`position`).
+- `draft`: telefondaki taslak kuralıyla (`lib/domain/set_draft.dart`) hesaplanan bir sonraki set önerisi.
+- `appliedEventIds`: telefonun işlediği son en fazla 50 olayın id'si (saat bekleyen olaylarını bununla temizler).
+
+**Saat → telefon: olaylar (MessageClient, yol `/event`).** Her olayın saatte üretilen bir UUID'si vardır.
+
+```json
+{ "protocol": 1, "eventId": "uuid", "type": "addSet", "workoutId": 42,
+  "workoutExerciseId": 101, "weightKg": 40.0, "reps": 10, "createdAt": "2026-11-21T18:41:05.000" }
+{ "protocol": 1, "eventId": "uuid", "type": "deleteSet", "workoutId": 42, "setId": 900,
+  "createdAt": "2026-11-21T18:42:00.000" }
+```
+
+Kurallar:
+- **Etkisi tam bir kez:** telefon işlediği olay id'lerini (son 200) saklar; aynı id ikinci kez gelirse yok sayar.
+  Saat bu yüzden bir olayı onay görene kadar gönül rahatlığıyla tekrar gönderebilir.
+- Olay etkin olmayan bir antrenmana ya da artık var olmayan bir harekete/sete aitse, ya da değerleri geçersizse
+  (`weightKg < 0`, `reps <= 0`) **işlenmiş sayılır ve yok sayılır** (saat bekleyen olayı böylece düşürür).
+- Telefon olayları işledikten sonra anlık durumu yeniden yayınlar; açık olan Antrenman ekranı da yenilenir.
+- `protocol` farklı olan olay ve anlık durum yok sayılır.
+
+**Yetenekler (capability):** telefon `exercise_tracker_phone`, saat `exercise_tracker_watch` yeteneğini
+`res/values/wear.xml` içinde duyurur. Saat olayları `exercise_tracker_phone` yeteneğine sahip düğüme gönderir.
+
+### 15.5 Telefon tarafı (Flutter + Kotlin)
+
+- **Uygulama kapalıyken de olay kaybolmaz:** `PhoneWearListenerService` (WearableListenerService) her olayı önce
+  yerel bir kuyruğa (SharedPreferences'ta JSON dizisi) yazar; Flutter çalışıyorsa `EventChannel` ile "yeni olay var"
+  der. Dart `drainEvents()` ile kuyruğu okur, işler, `ackEvents(ids)` ile siler. Uygulama açılışında da kuyruk boşaltılır.
+  Telefon cepte ve ekran kilitliyken Flutter süreci genelde canlıdır; değilse olaylar bir sonraki açılışta işlenir
+  (saat bu arada kendi iyimser durumunu gösterir).
+- `WearChannel` (Dart, abstract, `lib/data/watch/wear_channel.dart`): gerçeği `MethodChannelWearChannel`, testlerde
+  `FakeWearChannel`. `BackupFileService` deseninde olduğu gibi mantığın tamamı `WatchSyncService`'tedir ve test edilir.
+- `WatchSyncService` (`lib/data/watch/watch_sync_service.dart`): `setActiveWorkout`, `workoutChanged(workoutId)`,
+  `processPendingEvents()`, `Stream<int> workoutUpdates` (olaylarla değişen antrenman id'si). `WorkoutViewModel`
+  kendi antrenmanının id'si gelince yeniden yüklenir.
+- Eşli saat ya da Play Services yoksa platform çağrıları sessizce hiçbir şey yapmaz; telefon uygulaması saat olmadan
+  aynen çalışır. Saat tarafındaki hatalar telefonda kullanıcıya hata olarak gösterilmez.
+
+### 15.6 Saat tarafı (Kotlin)
+
+- Katmanlar telefondakine benzer: `data/` (protokol, `PhoneSyncRepository`, olay kuyruğu), `ui/` (ekranlar + ViewModel),
+  `domain/` (saf Kotlin: iyimser durum birleştirme). JSON için `kotlinx.serialization`.
+- **İyimser durum:** saatte görünen = telefonun son anlık durumu + henüz `appliedEventIds`'te görünmeyen bekleyen olaylar.
+  Bekleyen set "bekliyor" simgesiyle gösterilir. Bekleyen olaylar DataStore'da saklanır (saat uygulaması kapansa da kalır)
+  ve telefon erişilebilir olunca yeniden gönderilir. Yalnızca telefonun onayladığı (id'si olan) setler silinebilir.
+- **Ekranlar (Faz 1):** Boş durum ("Telefonda bir antrenman aç") → Hareket listesi (ilerleme "2/3 set") → Hareket ekranı
+  (hedef, geçen sefer, ağırlık ± 2,5 kg ve tekrar ± 1; döner çerçeve odaktaki değeri değiştirir; "Set tamam") →
+  Dinlenme sayacı (dairesel ilerleme, ±15 sn, "Atla"; bitince titreşim).
+- **Dinlenme süresi** saatte ayarlanır ve saatte saklanır (varsayılan 90 sn). Faz 1'de sayaç çalışırken ekran açık tutulur;
+  ekran kapalıyken güvenilir çalışma (foreground service + Ongoing Activity) Faz 2'dedir.
+- Saat teması sabittir: koyu zemin + turuncu vurgu (telefonun "koyu turuncu" teması). Yazılar Türkçe.
+- **Test:** `domain/` ve protokol için JVM birim testleri (`gradlew test`); ekranlar gerçek saatte denenir
+  (Wi-Fi üzerinden `adb`).
