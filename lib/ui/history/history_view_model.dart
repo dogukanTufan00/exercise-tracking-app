@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../domain/week_grouping.dart';
 
@@ -11,22 +12,34 @@ import '../../domain/week_grouping.dart';
 ///
 /// Antrenman başlatma sayfası için etkin programı da okur ve programın bir gününden antrenman başlatır.
 /// [watchUpdates] verilirse saatten gelen her değişiklikte (ör. saatten başlatılan antrenman) liste yeniden okunur.
+/// [settings] verilirse yedek hatırlatması hesaplanır (§16.4); yoksa hatırlatma hiç gösterilmez.
 class HistoryViewModel extends ChangeNotifier {
   HistoryViewModel(
     this._repository,
     this._programRepository, {
     Stream<int>? watchUpdates,
-  }) {
+    this.settings,
+    DateTime Function()? clock,
+  }) : _clock = clock ?? DateTime.now {
     _watchSubscription = watchUpdates?.listen((_) => load());
   }
 
   final WorkoutRepository _repository;
   final ProgramRepository _programRepository;
+  final SettingsRepository? settings;
+  final DateTime Function() _clock;
   StreamSubscription<int>? _watchSubscription;
+
+  /// Son yedek bu süreden eskiyse hatırlatma gösterilir.
+  static const Duration backupStaleAfter = Duration(days: 14);
+
+  /// Hatırlatma kapatıldıktan sonra bu süre geçmeden yeniden gösterilmez.
+  static const Duration reminderSnoozeAfterDismiss = Duration(days: 7);
 
   List<WorkoutSummary> _workouts = const [];
   bool _isLoading = true;
   String? _errorMessage;
+  String? _backupReminderTitle;
   bool _disposed = false;
 
   /// Repository'nin döndürdüğü sırayla (en yeni üstte).
@@ -48,7 +61,23 @@ class HistoryViewModel extends ChangeNotifier {
     _notify();
   }
 
-  /// Antrenman özetlerini repository'den yeniden okur.
+  /// Yedek hatırlatmasının başlığı ("Henüz yedek almadın" ya da "Son yedeğin N gün önce"); gösterilmiyorsa `null`.
+  String? get backupReminderTitle => _backupReminderTitle;
+
+  /// Hatırlatmayı kapatır (×) ve kapatma zamanını saklar.
+  Future<void> dismissBackupReminder() async {
+    _backupReminderTitle = null;
+    _notify();
+    final repository = settings;
+    if (repository == null) return;
+    try {
+      await repository.setBackupReminderDismissedAt(_clock());
+    } on Exception {
+      // Kayıt başarısızsa hatırlatma yine de bu oturumda kapalı kalır.
+    }
+  }
+
+  /// Antrenman özetlerini repository'den yeniden okur; yedek hatırlatmasını da yeniden hesaplar.
   Future<void> load() async {
     _isLoading = true;
     _notify();
@@ -63,7 +92,37 @@ class HistoryViewModel extends ChangeNotifier {
     }
 
     _isLoading = false;
+    await _computeBackupReminder();
     _notify();
+  }
+
+  /// Hatırlatma koşulları (§16.4): en az bir antrenman var; son yedek yok ya da 14 günden eski;
+  /// hatırlatma hiç kapatılmamış ya da 7 günden önce kapatılmış.
+  Future<void> _computeBackupReminder() async {
+    _backupReminderTitle = null;
+    final repository = settings;
+    if (repository == null || _workouts.isEmpty) return;
+
+    try {
+      final now = _clock();
+      final lastBackup = await repository.getLastBackupAt();
+      if (lastBackup != null && now.difference(lastBackup) <= backupStaleAfter) {
+        return;
+      }
+
+      final dismissedAt = await repository.getBackupReminderDismissedAt();
+      if (dismissedAt != null &&
+          now.difference(dismissedAt) < reminderSnoozeAfterDismiss) {
+        return;
+      }
+
+      _backupReminderTitle = lastBackup == null
+          ? 'Henüz yedek almadın'
+          : 'Son yedeğin ${now.difference(lastBackup).inDays} gün önce';
+    } on Exception {
+      // Ayar okunamazsa hatırlatma gösterilmez; liste yine de açılır.
+      _backupReminderTitle = null;
+    }
   }
 
   /// Yeni (başlıksız) bir antrenman oluşturur ve id'sini döndürür; hata olursa `null`.

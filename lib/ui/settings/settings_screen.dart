@@ -4,16 +4,22 @@ import 'package:provider/provider.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/measurement_repository.dart';
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/rest/rest_controller.dart';
 import '../../data/services/backup_file_service.dart';
+import '../../domain/rest_timer.dart';
+import '../core/formatters.dart';
+import '../core/rest_provider.dart';
 import '../core/theme/app_palette.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/theme/theme_controller.dart';
 import 'backup_view_model.dart';
 
-/// Ayarlar ekranı: tema seçimi ve veri dışa/içe aktarma.
+/// Ayarlar ekranı: tema seçimi, dinlenme ayarları ve veri dışa/içe aktarma.
 ///
 /// Tema için [ThemeController], "Veriler" bölümü için [BackupViewModel] kullanılır.
+/// "Dinlenme" bölümü yalnızca [RestController] sağlayıcısı varsa gösterilir.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
@@ -25,6 +31,7 @@ class SettingsScreen extends StatelessWidget {
         context.read<MeasurementRepository>(),
         context.read<ProgramRepository>(),
         context.read<BackupFileService>(),
+        settings: context.read<SettingsRepository>(),
       ),
       child: const _SettingsView(),
     );
@@ -38,6 +45,7 @@ class _SettingsView extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<ThemeController>();
     final backup = context.watch<BackupViewModel>();
+    final rest = readRestController(context);
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
@@ -58,6 +66,10 @@ class _SettingsView extends StatelessWidget {
                 controller.setTheme(id);
               },
             ),
+          if (rest != null) ...[
+            const SizedBox(height: AppSpacing.xl),
+            _RestSection(controller: rest),
+          ],
           const SizedBox(height: AppSpacing.xl),
           Text('Veriler', style: textTheme.bodySmall),
           const SizedBox(height: AppSpacing.sm),
@@ -109,6 +121,72 @@ class _SettingsView extends StatelessWidget {
         );
       }
     });
+  }
+}
+
+/// "Dinlenme" bölümü (§16.2): süre ayarı (15 sn adım, 15 sn – 10 dk) ve telefonun da titreşmesi.
+class _RestSection extends StatelessWidget {
+  const _RestSection({required this.controller});
+
+  final RestController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final textTheme = Theme.of(context).textTheme;
+        final colorScheme = Theme.of(context).colorScheme;
+        final seconds = controller.restSeconds;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Dinlenme', style: textTheme.bodySmall),
+            const SizedBox(height: AppSpacing.sm),
+            Row(
+              children: [
+                Icon(Icons.timer_outlined, size: 24, color: colorScheme.onSurfaceVariant),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text('Dinlenme süresi', style: textTheme.bodyLarge),
+                ),
+                IconButton(
+                  tooltip: 'Azalt',
+                  onPressed: seconds <= restMinSeconds
+                      ? null
+                      : () => controller.setRestSeconds(seconds - restStepSeconds),
+                  icon: const Icon(Icons.remove),
+                ),
+                SizedBox(
+                  width: 56,
+                  child: Text(
+                    formatRestClock(seconds),
+                    textAlign: TextAlign.center,
+                    style: textTheme.titleMedium,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Artır',
+                  onPressed: seconds >= restMaxSeconds
+                      ? null
+                      : () => controller.setRestSeconds(seconds + restStepSeconds),
+                  icon: const Icon(Icons.add),
+                ),
+              ],
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              secondary: Icon(Icons.vibration, color: colorScheme.onSurfaceVariant),
+              title: Text('Dinlenme bitince telefon da titresin', style: textTheme.bodyLarge),
+              subtitle: Text('Saat her zaman titrer.', style: textTheme.bodySmall),
+              value: controller.vibrateOnPhone,
+              onChanged: (value) => controller.setVibrateOnPhone(value),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

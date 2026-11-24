@@ -1,6 +1,7 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/measurement_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/program_repository.dart';
+import 'package:exercise_tracking_app/data/repositories/settings_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/ui/app_shell.dart';
 import 'package:exercise_tracking_app/ui/core/theme/app_theme.dart';
@@ -17,6 +18,7 @@ import 'package:provider/provider.dart';
 
 import '../fakes/fake_measurement_repository.dart';
 import '../fakes/fake_program_repository.dart';
+import '../fakes/fake_settings_repository.dart';
 import '../fakes/fake_workout_repository.dart';
 
 void main() {
@@ -48,6 +50,7 @@ void main() {
           Provider<WorkoutRepository>.value(value: repository),
           Provider<MeasurementRepository>.value(value: measurements),
           Provider<ProgramRepository>.value(value: programs),
+          Provider<SettingsRepository>.value(value: FakeSettingsRepository()),
         ],
         child: MaterialApp(
           theme: buildAppTheme(AppThemeId.darkOrange),

@@ -7,6 +7,7 @@ import 'package:exercise_tracking_app/data/backup/backup_json_codec.dart';
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/measurement_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/program_repository.dart';
+import 'package:exercise_tracking_app/data/repositories/settings_repository.dart';
 import 'package:exercise_tracking_app/data/repositories/workout_repository.dart';
 import 'package:exercise_tracking_app/data/services/backup_file_service.dart';
 import 'package:exercise_tracking_app/ui/core/theme/theme_controller.dart';
@@ -33,15 +34,15 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    final controller = ThemeController(
-      FakeSettingsRepository(initialTheme: initialTheme),
-    );
+    final settings = FakeSettingsRepository(initialTheme: initialTheme);
+    final controller = ThemeController(settings);
     await controller.load();
     final workouts = repository ?? FakeWorkoutRepository();
     await tester.pumpWidget(
       MultiProvider(
         providers: [
           Provider<WorkoutRepository>.value(value: workouts),
+          Provider<SettingsRepository>.value(value: settings),
           Provider<MeasurementRepository>.value(
             value: FakeMeasurementRepository(),
           ),

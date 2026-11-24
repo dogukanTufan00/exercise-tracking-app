@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../core/formatters.dart';
+import '../core/rest_provider.dart';
 import '../core/watch_sync_provider.dart';
 import '../core/theme/app_spacing.dart';
 import '../core/widgets/empty_state.dart';
@@ -12,6 +15,7 @@ import '../core/widgets/exercise_edit_dialog.dart';
 import '../exercise_detail/exercise_detail_screen.dart';
 import '../exercise_picker/exercise_picker_screen.dart';
 import 'widgets/exercise_card.dart';
+import 'widgets/rest_bar.dart';
 import 'workout_view_model.dart';
 
 /// Antrenman ekranı: var olan bir antrenmanı gösterir ve düzenler.
@@ -30,19 +34,24 @@ class WorkoutScreen extends StatelessWidget {
         context.read<WorkoutRepository>(),
         workoutId,
         watchSync: readWatchSync(context),
+        restController: readRestController(context),
       )..load(),
-      child: const _WorkoutView(),
+      child: _WorkoutView(workoutId: workoutId),
     );
   }
 
 }
 
 class _WorkoutView extends StatelessWidget {
-  const _WorkoutView();
+  const _WorkoutView({required this.workoutId});
+
+  final int workoutId;
 
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<WorkoutViewModel>();
+    final restController = readRestController(context);
+    final colorScheme = Theme.of(context).colorScheme;
 
     final error = vm.errorMessage;
     if (error != null) {
@@ -111,14 +120,72 @@ class _WorkoutView extends StatelessWidget {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: _TitleButton(
-            title: vm.title,
-            onTap: () => _editTitle(context, vm),
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _TitleButton(
+                title: vm.title,
+                onTap: () => _editTitle(context, vm),
+              ),
+              if (vm.detail != null && vm.isFinished)
+                Text(
+                  formatDuration(
+                    vm.detail!.workout.finishedAt!
+                        .difference(vm.detail!.workout.startedAt),
+                  ),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                )
+              else if (vm.detail != null && vm.isRecent)
+                _ElapsedLabel(
+                  startedAt: vm.detail!.workout.startedAt,
+                  now: () => vm.now,
+                ),
+            ],
           ),
+          actions: [
+            if (vm.canFinish)
+              TextButton(
+                onPressed: () => _finish(context, vm),
+                child: const Text('Bitir'),
+              ),
+          ],
         ),
         body: _buildBody(context, vm),
+        bottomNavigationBar: restController == null
+            ? null
+            : RestBar(controller: restController, workoutId: workoutId),
       ),
     );
+  }
+
+  /// "Bitir" onayı sorar; onaylanırsa bitiş saatini yazar ve ekrandan çıkar.
+  Future<void> _finish(BuildContext context, WorkoutViewModel vm) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Antrenmanı bitir?'),
+        content: const Text('Bitiş saati kaydedilecek.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Bitir'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    await vm.flushNotes();
+    final finished = await vm.finishWorkout();
+    if (!finished || !context.mounted) return;
+    Navigator.of(context).pop();
   }
 
   Widget _buildBody(BuildContext context, WorkoutViewModel vm) {
@@ -251,6 +318,47 @@ class _WorkoutView extends StatelessWidget {
     if (newTitle != null) {
       await vm.updateTitle(newTitle);
     }
+  }
+}
+
+/// Başlığın altındaki canlı geçen süre ("42:13"); saniyede bir yenilenir, dispose'da zamanlayıcı iptal edilir.
+class _ElapsedLabel extends StatefulWidget {
+  const _ElapsedLabel({required this.startedAt, required this.now});
+
+  final DateTime startedAt;
+  final DateTime Function() now;
+
+  @override
+  State<_ElapsedLabel> createState() => _ElapsedLabelState();
+}
+
+class _ElapsedLabelState extends State<_ElapsedLabel> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _timer = null;
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final elapsed = widget.now().difference(widget.startedAt);
+    return Text(
+      formatElapsed(elapsed),
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+    );
   }
 }
 

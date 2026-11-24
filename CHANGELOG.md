@@ -22,6 +22,16 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 - Saat, telefon uygulaması kapalıyken de çalışır: saatten başlatma, set ekleme/silme ve bitirme telefonda arka
   planda (ekransız) işlenir; telefon uygulamasını açmak gerekmez.
 
+- Telefonda dinlenme sayacı (#18): set eklenince başlar; antrenman ekranının altında kalan süre, −15/+15 ve Atla;
+  uygulama arka plandayken bildirimde geri sayım. Sayaç saatle senkron: hangi cihazda set eklenirse eklensin iki cihazda
+  birden başlar, ±15 ve Atla iki yönde de yansır. Süre ayarı tek (varsayılan 90 sn) ve iki cihazdan da değiştirilebilir.
+  Bitişte saat her zaman titrer; telefon Ayarlar'daki "Dinlenme bitince telefon da titresin" anahtarına göre.
+- Antrenman süresi (#22): antrenman ekranında "Bitir" düğmesi ve canlı geçen süre; Geçmiş kartlarında süre
+  ("1 sa 12 dk"). Saatten bitirme de bitiş saatini kaydeder. Veritabanı şema 4, yedek biçimi 4 (eski yedekler okunur);
+  CSV'ye `finished_at` sütunu eklendi.
+- Yedek hatırlatması (#19): son yedek 14 günden eskiyse ya da hiç alınmadıysa Geçmiş ekranının üstünde kapatılabilir
+  uyarı ve "Yedekle" düğmesi.
+
 ### Düzeltildi
 - Saatten başlatılan antrenman, telefonda Geçmiş ekranı yeniden açılana kadar görünmüyordu (#25).
 

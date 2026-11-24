@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/workout_repository.dart';
+import '../../data/rest/rest_controller.dart';
 import '../../data/watch/watch_sync_service.dart';
 import '../../domain/progress.dart';
 import '../../domain/set_draft.dart';
@@ -17,15 +18,26 @@ import '../core/formatters.dart';
 /// [watchSync] verilirse antrenman saate bağlanır: yüklenince etkin olur, her değişiklikte
 /// anlık durumu yeniden yayınlanır, saatten gelen olaylarla değişince detay yenilenir.
 class WorkoutViewModel extends ChangeNotifier {
-  WorkoutViewModel(this._repository, this._workoutId, {WatchSyncService? watchSync})
-      : _watchSync = watchSync {
+  WorkoutViewModel(
+    this._repository,
+    this._workoutId, {
+    WatchSyncService? watchSync,
+    this.restController,
+    DateTime Function()? clock,
+  })  : _watchSync = watchSync,
+        _clock = clock ?? DateTime.now {
     _watchSubscription = watchSync?.workoutUpdates.listen(_onWatchUpdate);
   }
 
   final WorkoutRepository _repository;
   final int _workoutId;
   final WatchSyncService? _watchSync;
+  final RestController? restController;
+  final DateTime Function() _clock;
   StreamSubscription<int>? _watchSubscription;
+
+  /// Bu süreden eski ve bitirilmemiş antrenmanda "Bitir" ve canlı süre gösterilmez (§16.3).
+  static const Duration activeWindow = Duration(hours: 12);
 
   /// Gecikmeli not kaydının süresi.
   static const Duration _noteDelay = Duration(milliseconds: 500);
@@ -90,6 +102,22 @@ class WorkoutViewModel extends ChangeNotifier {
     return current.workout.title ??
         formatWorkoutDate(current.workout.startedAt);
   }
+
+  /// Şu an (saat). Canlı süre ve bitiş zamanı için ekran da bunu kullanır.
+  DateTime get now => _clock();
+
+  /// Antrenman bitirilmiş mi (bitiş saati yazılmış).
+  bool get isFinished => _detail?.workout.finishedAt != null;
+
+  /// Antrenman bitirilmemiş ve 12 saatten yeni mi: canlı süre ve "Bitir" bu durumda gösterilir.
+  bool get isRecent {
+    final startedAt = _detail?.workout.startedAt;
+    if (startedAt == null) return false;
+    return now.difference(startedAt) < activeWindow;
+  }
+
+  /// "Bitir" düğmesi görünür mü: bitirilmemiş ve yeni antrenman.
+  bool get canFinish => _detail != null && !isFinished && isRecent;
 
   /// Hareket kartı açık mı (antrenmandaki hareket id'sine göre).
   bool isExpanded(int workoutExerciseId) => _expanded.contains(workoutExerciseId);
@@ -253,7 +281,7 @@ class WorkoutViewModel extends ChangeNotifier {
 
   // ----------------------------------------------------------------- Setler
 
-  /// Taslak değerleriyle yeni set ekler. Taslak değişmez.
+  /// Taslak değerleriyle yeni set ekler. Taslak değişmez. Başarılıysa dinlenme sayacı başlar.
   Future<void> addSet(int workoutExerciseId) async {
     final draft = draftFor(workoutExerciseId);
     await _run('Set eklenemedi.', () async {
@@ -264,7 +292,21 @@ class WorkoutViewModel extends ChangeNotifier {
       );
       await _reload();
       _announceLastSetRecord(workoutExerciseId);
+      await restController?.start(_workoutId);
     });
+  }
+
+  /// "Bitir": bitiş saatini şimdi olarak yazar ve bu antrenmanın dinlenme sayacını durdurur.
+  /// Başarılıysa `true`; ekran bunun ardından geri döner.
+  Future<bool> finishWorkout() async {
+    var finished = false;
+    await _run('Antrenman bitirilemedi.', () async {
+      await _repository.setWorkoutFinishedAt(_workoutId, _clock());
+      await restController?.clearForWorkout(_workoutId);
+      await _reload();
+      finished = true;
+    });
+    return finished;
   }
 
   /// Son setin değerleriyle yeni set ekler. Hareketin seti yoksa hiçbir şey yapmaz.
@@ -281,6 +323,7 @@ class WorkoutViewModel extends ChangeNotifier {
       );
       await _reload();
       _announceLastSetRecord(workoutExerciseId);
+      await restController?.start(_workoutId);
     });
   }
 

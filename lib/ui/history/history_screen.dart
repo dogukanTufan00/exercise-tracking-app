@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/models/models.dart';
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../domain/program_schedule.dart';
 import '../../domain/week_grouping.dart';
@@ -15,6 +16,7 @@ import '../core/widgets/muscle_group_chip.dart';
 import '../settings/settings_screen.dart';
 import '../workout/workout_screen.dart';
 import 'history_view_model.dart';
+import 'widgets/backup_reminder_banner.dart';
 
 /// Geçmiş ekranı: uygulamanın açılış ekranı.
 ///
@@ -30,6 +32,7 @@ class HistoryScreen extends StatelessWidget {
         context.read<WorkoutRepository>(),
         context.read<ProgramRepository>(),
         watchUpdates: readWatchSync(context)?.workoutUpdates,
+        settings: context.read<SettingsRepository>(),
       )..load(),
       child: const _HistoryView(),
     );
@@ -51,18 +54,29 @@ class _HistoryView extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             tooltip: 'Ayarlar',
-            onPressed: () async {
-              // Tam ekran: alt gezinme çubuğunun üstünü kaplar.
-              await Navigator.of(context, rootNavigator: true).push(
-                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-              );
-              // Ayarlar'da yedekten geri yükleme yapılmış olabilir.
-              if (context.mounted) await viewModel.load();
-            },
+            onPressed: () => _openSettings(context, viewModel),
           ),
         ],
       ),
-      body: _buildBody(context, viewModel),
+      body: Column(
+        children: [
+          if (viewModel.backupReminderTitle case final title?)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpacing.screenPadding,
+                AppSpacing.screenPadding,
+                AppSpacing.screenPadding,
+                0,
+              ),
+              child: BackupReminderBanner(
+                title: title,
+                onBackup: () => _openSettings(context, viewModel),
+                onDismiss: viewModel.dismissBackupReminder,
+              ),
+            ),
+          Expanded(child: _buildBody(context, viewModel)),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         tooltip: 'Antrenman başlat',
         onPressed: () => _onStartPressed(context, viewModel),
@@ -105,6 +119,18 @@ class _HistoryView extends StatelessWidget {
         };
       },
     );
+  }
+
+  /// Ayarları tam ekranda açar; dönünce (yedek alınmış ya da geri yüklenmiş olabilir) listeyi ve hatırlatmayı yeniler.
+  Future<void> _openSettings(
+    BuildContext context,
+    HistoryViewModel viewModel,
+  ) async {
+    // Tam ekran: alt gezinme çubuğunun üstünü kaplar.
+    await Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+    );
+    if (context.mounted) await viewModel.load();
   }
 
   /// Haftaları, her hafta başlığının altına o haftanın kartları gelecek şekilde düz bir listeye çevirir.
@@ -462,7 +488,13 @@ class _WorkoutCard extends StatelessWidget {
               ),
               const SizedBox(height: AppSpacing.xs),
               Text(
-                '${summary.exerciseCount} hareket · ${summary.setCount} set',
+                [
+                  '${summary.exerciseCount} hareket · ${summary.setCount} set',
+                  if (workout.finishedAt != null)
+                    formatDuration(
+                      workout.finishedAt!.difference(workout.startedAt),
+                    ),
+                ].join(' · '),
                 style: textTheme.bodySmall?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),

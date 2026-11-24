@@ -5,10 +5,13 @@ import '../../data/backup/backup_json_codec.dart';
 import '../../data/models/backup_data.dart';
 import '../../data/repositories/measurement_repository.dart';
 import '../../data/repositories/program_repository.dart';
+import '../../data/repositories/settings_repository.dart';
 import '../../data/repositories/workout_repository.dart';
 import '../../data/services/backup_file_service.dart';
 
 /// Ayarlar > Veriler bölümünün durumu: dışa aktarma, yedek alma ve yedekten geri yükleme.
+///
+/// [settings] verilirse başarılı JSON yedeğinin zamanı saklanır (§16.4); CSV sayılmaz.
 class BackupViewModel extends ChangeNotifier {
   BackupViewModel(
     this._repository,
@@ -16,6 +19,7 @@ class BackupViewModel extends ChangeNotifier {
     this._programs,
     this._files, {
     DateTime Function()? clock,
+    this.settings,
   }) : _clock = clock ?? DateTime.now;
 
   final WorkoutRepository _repository;
@@ -23,6 +27,7 @@ class BackupViewModel extends ChangeNotifier {
   final ProgramRepository _programs;
   final BackupFileService _files;
   final DateTime Function() _clock;
+  final SettingsRepository? settings;
 
   bool _isBusy = false;
   String? _message;
@@ -95,7 +100,10 @@ class BackupViewModel extends ChangeNotifier {
         content: encodeBackupJson(data),
         mimeType: 'application/json',
       );
-      if (saved) _message = 'Yedek kaydedildi';
+      if (saved) {
+        _message = 'Yedek kaydedildi';
+        await settings?.setLastBackupAt(_clock());
+      }
     });
   }
 

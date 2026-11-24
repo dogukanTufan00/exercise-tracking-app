@@ -90,3 +90,35 @@ String formatTarget(ExerciseTarget target) {
   final kg = target.weightKg;
   return kg == null ? base : '$base · ${formatWeight(kg)} kg';
 }
+
+/// Süreyi Türkçe biçimde yazar: "45 dk", "1 sa", "1 sa 12 dk". Dakikaya aşağı yuvarlanır;
+/// 1 dakikadan kısa süreler "1 dk" olur.
+String formatDuration(Duration d) {
+  final totalMinutes = d.inMinutes < 0 ? 0 : d.inMinutes;
+  final hours = totalMinutes ~/ 60;
+  final minutes = totalMinutes % 60;
+
+  if (hours == 0) return '${minutes == 0 ? 1 : minutes} dk';
+  if (minutes == 0) return '$hours sa';
+  return '$hours sa $minutes dk';
+}
+
+/// Geçen süreyi saat/dakika:saniye biçiminde yazar: "42:13"; bir saati geçince "1:02:13".
+String formatElapsed(Duration d) {
+  final totalSeconds = d.inSeconds < 0 ? 0 : d.inSeconds;
+  final hours = totalSeconds ~/ 3600;
+  final minutes = (totalSeconds % 3600) ~/ 60;
+  final seconds = totalSeconds % 60;
+  final ss = seconds.toString().padLeft(2, '0');
+
+  if (hours == 0) return '$minutes:$ss';
+  return '$hours:${minutes.toString().padLeft(2, '0')}:$ss';
+}
+
+/// Dinlenme geri sayımı saniyeyi dakika:saniye yazar: "1:30", "0:05".
+String formatRestClock(int seconds) {
+  final total = seconds < 0 ? 0 : seconds;
+  final minutes = total ~/ 60;
+  final secs = total % 60;
+  return '$minutes:${secs.toString().padLeft(2, '0')}';
+}
