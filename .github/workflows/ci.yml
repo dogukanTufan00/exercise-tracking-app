@@ -43,9 +43,8 @@ jobs:
           distribution: temurin
           java-version: 21
 
-      # Android SDK ve lisanslar; eksik platform (compileSdk 37) Gradle tarafından indirilir.
-      - uses: android-actions/setup-android@v3
-
+      # Android SDK makinede hazır kurulu (ANDROID_HOME); eksik platformu (compileSdk 37) Gradle kendisi indirir.
+      # android-actions/setup-android burada kullanılmaz: artık olmayan 'tools' paketini kurmaya çalışıp düşüyor.
       - uses: gradle/actions/setup-gradle@v4
 
       # İmza anahtarı CI'da yok: release derlemesi debug anahtarıyla imzalanır (app/build.gradle.kts),
