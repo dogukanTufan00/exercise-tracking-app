@@ -26,6 +26,9 @@ abstract interface class WorkoutRepository {
   /// Başlığı değiştirir; `null` ya da boş metin başlığı kaldırır.
   Future<void> updateWorkoutTitle(int workoutId, String? title);
 
+  /// Bitiş anını yazar (şema 4, §16.3); `null` bitişi kaldırır. Antrenman yoksa bir şey yapmaz.
+  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt);
+
   /// Antrenmanı, içindeki hareketleri ve setleri siler. Katalogdaki hareketler kalır.
   Future<void> deleteWorkout(int workoutId);
 

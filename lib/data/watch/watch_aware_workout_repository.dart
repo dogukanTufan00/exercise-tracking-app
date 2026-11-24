@@ -151,4 +151,10 @@ class WatchAwareWorkoutRepository implements WorkoutRepository {
     _activeChanged();
     return result;
   }
+
+  @override
+  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt) {
+    // TODO(dalga 16, CB): uygula.
+    throw UnimplementedError();
+  }
 }

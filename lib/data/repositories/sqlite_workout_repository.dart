@@ -747,4 +747,10 @@ class SqliteWorkoutRepository implements WorkoutRepository {
       throw ArgumentError.value(reps, 'reps', 'Tekrar sayısı en az 1 olmalı');
     }
   }
+
+  @override
+  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt) {
+    // TODO(dalga 16, CA): uygula.
+    throw UnimplementedError();
+  }
 }

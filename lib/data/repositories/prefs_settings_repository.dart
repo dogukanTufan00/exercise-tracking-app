@@ -18,4 +18,29 @@ class PrefsSettingsRepository implements SettingsRepository {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_themeKey, themeId.name);
   }
+
+  // TODO(dalga 16, CB): dinlenme ve yedek hatırlatması ayarlarını uygula.
+  @override
+  Future<int> getRestSeconds() => throw UnimplementedError();
+
+  @override
+  Future<void> setRestSeconds(int seconds) => throw UnimplementedError();
+
+  @override
+  Future<bool> getRestVibrateOnPhone() => throw UnimplementedError();
+
+  @override
+  Future<void> setRestVibrateOnPhone(bool value) => throw UnimplementedError();
+
+  @override
+  Future<DateTime?> getLastBackupAt() => throw UnimplementedError();
+
+  @override
+  Future<void> setLastBackupAt(DateTime value) => throw UnimplementedError();
+
+  @override
+  Future<DateTime?> getBackupReminderDismissedAt() => throw UnimplementedError();
+
+  @override
+  Future<void> setBackupReminderDismissedAt(DateTime value) => throw UnimplementedError();
 }

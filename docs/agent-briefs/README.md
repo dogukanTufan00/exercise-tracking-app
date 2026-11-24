@@ -137,3 +137,6 @@ await tester.pumpAndSettle();
 | 15 | BC | [Saatin veri katmanı, Faz 2 (#25)](wave15-bc-watch-data-phase2.md) |
 | 15 | BD | [Saat ekranları, Faz 2 (#25)](wave15-bd-watch-ui-phase2.md) |
 | 15 | BE | [Antrenman servisi, sayaç ve Tile (#25)](wave15-be-watch-session-tile.md) |
+| 16a | CA | [Şema 4, bitiş saati, yedek 4, telefon dinlenme bildirimi (#22, #18)](wave16-ca-duration-data.md) |
+| 16a | CB | [Telefonda dinlenme sayacı ve saat senkronu (#18)](wave16-cb-rest-sync-phone.md) |
+| 16a | CC | [Saatte senkron dinlenme sayacı (#18)](wave16-cc-rest-sync-watch.md) |

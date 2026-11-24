@@ -23,6 +23,11 @@ const String watchProgramPath = '/program/active';
 /// olmasa da yazılır; saat bekleyen olaylarını hem bununla hem anlık durumdakiyle temizler.
 const String watchAppliedPath = '/events/applied';
 
+/// Dinlenme süresi ayarının (saniye) yayınlandığı DataItem yolu; değer DataMap'te [watchRestSecondsKey]
+/// anahtarında `int` olarak durur (§16.2). Telefon açılışta ve ayar her değiştiğinde yazar.
+const String watchRestSettingsPath = '/settings/rest';
+const String watchRestSecondsKey = 'restSeconds';
+
 /// Saatin olay gönderdiği mesaj yolu.
 const String watchEventPath = '/event';
 
@@ -159,6 +164,42 @@ class WatchExercise {
       };
 }
 
+/// Çalışan dinlenme sayacı (§16.2). İki cihaz da geri sayımı [endsAt]'e göre kendi saatiyle yapar.
+class WatchRest {
+  const WatchRest({required this.restId, required this.endsAt, required this.totalSeconds});
+
+  factory WatchRest.fromJson(Map<String, Object?> json) => WatchRest(
+        restId: json['restId'] as String,
+        endsAt: DateTime.parse(json['endsAt'] as String),
+        totalSeconds: json['totalSeconds'] as int,
+      );
+
+  /// Sayacın kimliği: saatte başlayanda tetikleyen `addSet` olayının id'si, telefonda başlayanda `phone-…`.
+  final String restId;
+
+  /// Bitiş anı (saat dilimsiz yerel saat).
+  final DateTime endsAt;
+
+  /// Toplam süre (±15 sn ile değişir); ilerleme halkası için.
+  final int totalSeconds;
+
+  Map<String, Object?> toJson() => {
+        'restId': restId,
+        'endsAt': endsAt.toIso8601String(),
+        'totalSeconds': totalSeconds,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is WatchRest &&
+      other.restId == restId &&
+      other.endsAt == endsAt &&
+      other.totalSeconds == totalSeconds;
+
+  @override
+  int get hashCode => Object.hash(restId, endsAt, totalSeconds);
+}
+
 /// Telefonun saate yayınladığı anlık durum.
 class WatchSnapshot {
   const WatchSnapshot({
@@ -168,6 +209,7 @@ class WatchSnapshot {
     required this.startedAt,
     required this.appliedEventIds,
     required this.exercises,
+    this.rest,
   });
 
   factory WatchSnapshot.fromJson(Map<String, Object?> json) => WatchSnapshot(
@@ -182,6 +224,9 @@ class WatchSnapshot {
           for (final item in json['exercises'] as List<Object?>)
             WatchExercise.fromJson(item as Map<String, Object?>),
         ],
+        rest: json['rest'] == null
+            ? null
+            : WatchRest.fromJson(json['rest'] as Map<String, Object?>),
       );
 
   final int protocol;
@@ -197,6 +242,9 @@ class WatchSnapshot {
   /// `position` sırasıyla.
   final List<WatchExercise> exercises;
 
+  /// Bu antrenmanda çalışan dinlenme sayacı; yoksa ya da süresi dolduysa `null` (§16.2).
+  final WatchRest? rest;
+
   Map<String, Object?> toJson() => {
         'protocol': protocol,
         'workoutId': workoutId,
@@ -204,6 +252,7 @@ class WatchSnapshot {
         'startedAt': startedAt.toIso8601String(),
         'appliedEventIds': appliedEventIds,
         'exercises': [for (final exercise in exercises) exercise.toJson()],
+        'rest': rest?.toJson(),
       };
 }
 
@@ -231,6 +280,31 @@ sealed class WatchEvent {
             workoutExerciseId: json['workoutExerciseId'] as int,
             weightKg: (json['weightKg'] as num).toDouble(),
             reps: json['reps'] as int,
+            restSeconds: json['restSeconds'] as int?,
+          );
+        case AdjustRestEvent.type:
+          return AdjustRestEvent(
+            protocol: protocol,
+            eventId: eventId,
+            workoutId: json['workoutId'] as int,
+            createdAt: createdAt,
+            restId: json['restId'] as String,
+            deltaSeconds: json['deltaSeconds'] as int,
+          );
+        case SkipRestEvent.type:
+          return SkipRestEvent(
+            protocol: protocol,
+            eventId: eventId,
+            workoutId: json['workoutId'] as int,
+            createdAt: createdAt,
+            restId: json['restId'] as String,
+          );
+        case SetRestSecondsEvent.type:
+          return SetRestSecondsEvent(
+            protocol: protocol,
+            eventId: eventId,
+            createdAt: createdAt,
+            seconds: json['seconds'] as int,
           );
         case DeleteSetEvent.type:
           return DeleteSetEvent(
@@ -286,6 +360,7 @@ final class AddSetEvent extends WatchEvent {
     required this.workoutExerciseId,
     required this.weightKg,
     required this.reps,
+    this.restSeconds,
   });
 
   static const String type = 'addSet';
@@ -295,6 +370,11 @@ final class AddSetEvent extends WatchEvent {
   final double weightKg;
   final int reps;
 
+  /// Saatin bu set için başlattığı dinlenme süresi (§16.2). Telefon dinlenmeyi `restId = eventId`,
+  /// `endsAt = createdAt + restSeconds` ile kaydeder. Eski saat sürümleri göndermez (`null`): telefon kendi
+  /// ayarını kullanır.
+  final int? restSeconds;
+
   @override
   Map<String, Object?> toJson() => {
         ..._baseJson(type),
@@ -302,7 +382,72 @@ final class AddSetEvent extends WatchEvent {
         'workoutExerciseId': workoutExerciseId,
         'weightKg': weightKg,
         'reps': reps,
+        'restSeconds': restSeconds,
       };
+}
+
+/// Saatte çalışan dinlenme ±15 sn değiştirildi (§16.2). Yalnızca [restId] şu anki sayaçsa uygulanır.
+final class AdjustRestEvent extends WatchEvent {
+  const AdjustRestEvent({
+    super.protocol,
+    required super.eventId,
+    required this.workoutId,
+    required super.createdAt,
+    required this.restId,
+    required this.deltaSeconds,
+  });
+
+  static const String type = 'adjustRest';
+
+  final int workoutId;
+  final String restId;
+  final int deltaSeconds;
+
+  @override
+  Map<String, Object?> toJson() => {
+        ..._baseJson(type),
+        'workoutId': workoutId,
+        'restId': restId,
+        'deltaSeconds': deltaSeconds,
+      };
+}
+
+/// Saatte dinlenme atlandı (§16.2). Yalnızca [restId] şu anki sayaçsa uygulanır.
+final class SkipRestEvent extends WatchEvent {
+  const SkipRestEvent({
+    super.protocol,
+    required super.eventId,
+    required this.workoutId,
+    required super.createdAt,
+    required this.restId,
+  });
+
+  static const String type = 'skipRest';
+
+  final int workoutId;
+  final String restId;
+
+  @override
+  Map<String, Object?> toJson() =>
+      {..._baseJson(type), 'workoutId': workoutId, 'restId': restId};
+}
+
+/// Saatin ayar ekranında dinlenme süresi değiştirildi (§16.2); telefon ayarı kaydeder ve yeniden yayınlar.
+/// Etkin antrenman gerekmez. Değer 15–600 aralığına sınırlanır.
+final class SetRestSecondsEvent extends WatchEvent {
+  const SetRestSecondsEvent({
+    super.protocol,
+    required super.eventId,
+    required super.createdAt,
+    required this.seconds,
+  });
+
+  static const String type = 'setRestSeconds';
+
+  final int seconds;
+
+  @override
+  Map<String, Object?> toJson() => {..._baseJson(type), 'seconds': seconds};
 }
 
 /// Saatte telefonun onayladığı bir set silindi.
@@ -342,7 +487,8 @@ final class StartWorkoutEvent extends WatchEvent {
   Map<String, Object?> toJson() => {..._baseJson(type), 'programDayId': programDayId};
 }
 
-/// Saatten antrenman bitirildi: telefon antrenmanı etkin olmaktan çıkarır; kayıt ve setler olduğu gibi kalır.
+/// Saatten antrenman bitirildi: telefon bitiş saatini [createdAt] olarak kaydeder (şema 4, §16.3), antrenmanı
+/// etkin olmaktan çıkarır ve dinlenmeyi durdurur; setler olduğu gibi kalır.
 final class FinishWorkoutEvent extends WatchEvent {
   const FinishWorkoutEvent({
     super.protocol,

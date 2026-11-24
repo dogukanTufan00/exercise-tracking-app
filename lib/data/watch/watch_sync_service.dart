@@ -294,6 +294,8 @@ class WatchSyncService {
         AddSetEvent() => await _applyAddSet(event, activeId),
         DeleteSetEvent() => await _applyDeleteSet(event, activeId),
         FinishWorkoutEvent() => await _applyFinish(event, activeId),
+        // TODO(dalga 16, CB): dinlenme olaylarını uygula (§16.2).
+        AdjustRestEvent() || SkipRestEvent() || SetRestSecondsEvent() => null,
       };
     } catch (error) {
       debugPrint('Saat olayı uygulanamadı: $error');

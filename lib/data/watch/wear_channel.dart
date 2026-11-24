@@ -23,6 +23,9 @@ abstract interface class WearChannel {
   /// Seçili temanın adını (`AppThemeId.name`) `/settings/theme` DataItem'ına yazar.
   Future<void> publishTheme(String themeId);
 
+  /// Dinlenme süresini (sn) `/settings/rest` DataItem'ına `restSeconds` (int) olarak yazar (§16.2).
+  Future<void> publishRestSettings(int restSeconds);
+
   /// Kuyruktaki, henüz onaylanmamış olayların ham JSON metinleri (gelme sırasıyla). Kuyruktan silmez.
   Future<List<String>> drainEvents();
 
@@ -39,6 +42,7 @@ abstract interface class WearChannel {
 /// - MethodChannel `exercise_tracker/wear`:
 ///   `publishSnapshot` (argüman: String), `clearSnapshot`, `publishTheme` (argüman: String),
 ///   `publishProgram` (argüman: String), `clearProgram`, `publishApplied` (argüman: String),
+///   `publishRestSettings` (argüman: int),
 ///   `drainEvents` (döner: `List<String>`),
 ///   `ackEvents` (argüman: `List<String>`)
 /// - EventChannel `exercise_tracker/wear/events`: kuyruğa olay eklenince `null` yayar.
@@ -63,6 +67,9 @@ class MethodChannelWearChannel implements WearChannel {
 
   @override
   Future<void> publishTheme(String themeId) => _call('publishTheme', themeId);
+
+  @override
+  Future<void> publishRestSettings(int restSeconds) => _call('publishRestSettings', restSeconds);
 
   @override
   Future<List<String>> drainEvents() async {

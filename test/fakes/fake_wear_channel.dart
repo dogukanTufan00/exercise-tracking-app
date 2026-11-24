@@ -30,6 +30,9 @@ class FakeWearChannel implements WearChannel {
   /// Yayınlanan `/events/applied` JSON'ları, yayın sırasıyla.
   final List<String> appliedPayloads = [];
 
+  /// Yayınlanan dinlenme süreleri (`/settings/rest`), yayın sırasıyla.
+  final List<int> publishedRestSeconds = [];
+
   final StreamController<void> _events = StreamController<void>.broadcast();
 
   /// Son yayınlanan anlık durumu çözümlenmiş JSON olarak döndürür; hiç yoksa `null`.
@@ -50,6 +53,11 @@ class FakeWearChannel implements WearChannel {
   @override
   Future<void> clearSnapshot() async {
     clearCount++;
+  }
+
+  @override
+  Future<void> publishRestSettings(int restSeconds) async {
+    publishedRestSeconds.add(restSeconds);
   }
 
   @override

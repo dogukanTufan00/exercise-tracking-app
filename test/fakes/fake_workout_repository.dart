@@ -596,4 +596,11 @@ class FakeWorkoutRepository implements WorkoutRepository {
       );
     }
   }
+
+  @override
+  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt) async {
+    final workout = _workouts[workoutId];
+    if (workout == null) return;
+    _workouts[workoutId] = workout.copyWith(finishedAt: finishedAt);
+  }
 }

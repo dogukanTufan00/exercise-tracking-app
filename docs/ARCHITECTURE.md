@@ -469,8 +469,8 @@ geri geldiğinde son durumu kendiliğinden alır. JSON, DataMap'te `json` anahta
 ```
 
 - `finishWorkout` (2026-11-22, kullanıcı kararı): saatte "Antrenmanı bitir" + onay. Telefon, `workoutId` etkin
-  antrenmansa etkinliği kaldırır (anlık durum silinir); antrenman kaydı ve setler değişmez, bitiş saati saklanmaz
-  (süre #22'nin işi). Aynı turda bitirmeden sonra gelen set olayları yok sayılır. Saat, bekleyen bitirme olayı varken
+  antrenmansa etkinliği kaldırır (anlık durum silinir); setler değişmez. v0.6.0'dan beri bitiş saatini de yazar
+  (§16.3). Aynı turda bitirmeden sonra gelen set olayları yok sayılır. Saat, bekleyen bitirme olayı varken
   o antrenmanı hemen gizler (iyimser durum `null`); servis, sayaç ve Ongoing Activity böylece kapanır.
   Telefonda antrenman yeniden açılırsa yine etkin olur.
 
@@ -521,7 +521,7 @@ Kurallar:
 - **Ekranlar (Faz 1):** Boş durum ("Telefonda bir antrenman aç") → Hareket listesi (ilerleme "2/3 set") → Hareket ekranı
   (hedef, geçen sefer, ağırlık ± 2,5 kg ve tekrar ± 1; döner çerçeve odaktaki değeri değiştirir; "Set tamam") →
   Dinlenme sayacı (dairesel ilerleme, ±15 sn, "Atla"; bitince titreşim).
-- **Dinlenme süresi** saatte ayarlanır ve saatte saklanır (varsayılan 90 sn). Faz 1'de sayaç çalışırken ekran açık tutulur;
+- **Dinlenme süresi** v0.6.0'dan beri telefonla ortaktır (§16.2; önceden saatte saklanıyordu, varsayılan 90 sn). Faz 1'de sayaç çalışırken ekran açık tutulur;
   ekran kapalıyken güvenilir çalışma (foreground service + Ongoing Activity) Faz 2'dedir.
 - Saat teması telefonda seçili temayı izler (§15.7). Yazılar Türkçe.
 - **Görünüm (2026-11-22, kullanıcı seçimi "A + B"):** DESIGN.md'nin saat karşılığı. Başlık ve sayılar Oswald
@@ -605,3 +605,90 @@ kaldırılır. `WatchSyncService` döngü olmasın diye sarılmamış repository
 Dinlenme sayacı bu servise taşınır; ekran kapalıyken de süre bitince titrer. Android 14 `health` türü için ilk
 antrenmanda bir kez **Fiziksel aktivite** (`ACTIVITY_RECOGNITION`) ve **bildirim** (`POST_NOTIFICATIONS`) izni istenir
 (kullanıcı kararı). İzin verilmezse sayaç Faz 1'deki gibi ekran açıkken çalışır.
+
+## 16. v0.6.0: senkron dinlenme sayacı, antrenman süresi, yedek hatırlatması (#18, #22, #19)
+
+Kararlar (2026-11-24, kullanıcı onaylı):
+
+### 16.1 Kapsam
+- **Dinlenme sayacı telefonda da var ve saatle senkron** (#18): hangi cihazda set eklenirse eklensin sayaç iki
+  cihazda birden başlar; ±15 sn ve Atla iki yönde de yansır. Süre ayarı tektir (varsayılan 90 sn, 15 sn adım,
+  15 sn – 10 dk), telefonda saklanır, saatten de değiştirilebilir.
+- **Bitişte titreşim:** saat her zaman titrer; telefon Ayarlar'daki **"Dinlenme bitince telefon da titresin"**
+  anahtarına göre (varsayılan açık).
+- **Telefonda arka plan:** Kotlin köprüsüyle (yeni paket yok) kalıcı geri sayım bildirimi (Android kronometresi) +
+  bitişte Dart `Timer` ile "Dinlenme bitti" bildirimi. Kesin alarm izni kullanılmaz (kullanıcı riski kabul etti):
+  Android süreci dondurursa telefonun bitiş titreşimi gecikebilir. Ekransız motor (§15.5) bildirim göstermez;
+  saatte başlayan sayaçta bitişi zaten saat titreşimle bildirir.
+- **Antrenman süresi** (#22): şema 4 + telefonda "Bitir" düğmesi + saatten bitirme bitiş saatini yazar.
+- **Yedek hatırlatması** (#19).
+
+### 16.2 Dinlenme sayacı
+**Model:** `lib/domain/rest_timer.dart` → `RestState { restId, workoutId, endsAt, totalSeconds }`. Sayaç bir
+**bitiş anıdır**; iki cihaz da kalan süreyi kendi saatinden hesaplar (telefon ve saat saatleri ağdan eşitlidir).
+Kayıt `RestStore`'da (`shared_preferences`, anahtar `rest_active`, her okumada `reload()`).
+
+**Protokol (sürüm 1 içinde, geriye uyumlu eklemeler):**
+- Anlık durumda yeni alan `rest`: `{ "restId": "…", "endsAt": "2026-11-24T18:42:30.000", "totalSeconds": 90 }`
+  ya da `null`. Yalnızca sayaç etkin antrenmana aitse ve süresi dolmamışsa yazılır. Eski saat sürümü alanı yok sayar.
+- `addSet` olayında yeni alan `restSeconds` (int, eski sürümde yok/`null`). Telefon olayı uygularken sayacı
+  `restId = eventId`, `endsAt = createdAt + restSeconds` (`null` ise telefonun ayarı) ile kaydeder. Olay geç
+  ulaştıysa ve süre çoktan dolduysa sayaç kaydedilmez.
+- Yeni olaylar:
+  ```json
+  { "protocol": 1, "eventId": "uuid", "type": "adjustRest", "workoutId": 42, "restId": "…", "deltaSeconds": 15, "createdAt": "…" }
+  { "protocol": 1, "eventId": "uuid", "type": "skipRest", "workoutId": 42, "restId": "…", "createdAt": "…" }
+  { "protocol": 1, "eventId": "uuid", "type": "setRestSeconds", "seconds": 120, "createdAt": "…" }
+  ```
+  `adjustRest`/`skipRest` yalnızca `restId` telefondaki kayıtlı sayaçla aynıysa uygulanır; değilse yok sayılır
+  (işlenmiş sayılır). Ayar sonucu bitmişse sayaç titreşimsiz silinir. `setRestSeconds` 15–600'e sınırlanır,
+  etkin antrenman gerektirmez.
+- Yeni DataItem **`/settings/rest`**, DataMap anahtarı `restSeconds` (int). Telefon `start()`'ta ve ayar her
+  değiştiğinde yazar (`WearChannel.publishRestSettings`, Kotlin köprüsünde `publishRestSettings`, `setUrgent`).
+
+**Telefon (Dart):**
+- `WatchSyncService` yeni bağımlılıklar: `RestStore restStore`, `SettingsRepository settings`. Anlık duruma `rest`
+  ekler; `addSet`/`adjustRest`/`skipRest`/`setRestSeconds`/`finishWorkout` olaylarında sayacı/ayarı günceller;
+  sayaç ya da ayar olayla değişince `Stream<void> restChanges` yayar; `Future<void> restSettingsChanged()` ayarı
+  yeniden yayınlar.
+- `RestController` (`lib/data/rest/rest_controller.dart`, `ChangeNotifier`, uygulamada tek örnek): `start(workoutId)`
+  ("Set ekle"den sonra `WorkoutViewModel`), `adjust`, `skip`, `clearForWorkout`, `setRestSeconds`,
+  `setVibrateOnPhone`. Telefonda başlatılan sayacın `restId`'si `phone-<microsecondsSinceEpoch>`.
+  Değişiklikten sonra `watchSync.activeWorkoutChanged()` çağırır; `restChanges` gelince yeniden okur.
+- `RestNotifier` (`lib/data/rest/rest_notifier.dart`) → Kotlin `RestNotifications.kt`, MethodChannel
+  `exercise_tracker/rest`. Kanallar: `rest_countdown` (düşük önem, sessiz; `setUsesChronometer` +
+  `setChronometerCountDown` + `setWhen(endsAt)` + `setTimeoutAfter(kalan)`, kaydırılamaz) ve `rest_done` (yüksek
+  önem, titreşimli, otomatik kapanır). Manifest: `POST_NOTIFICATIONS`, `VIBRATE`. Bildirime dokununca uygulama açılır.
+
+**Saat (Kotlin):**
+- Gösterilen sayaç = anlık durumdaki `rest` + bekleyen olaylar (iyimser durum, §15.6): bekleyen `addSet` →
+  `restId = eventId`, `endsAt = createdAt + restSeconds`; bekleyen `adjustRest`/`skipRest` aynı `restId`'ye uygulanır.
+  Saat set eklerken sayacı yerelde hemen başlatır (iyimser) ve telefondan gelen aynı `restId`'yi yeniden başlatmaz.
+- `SessionRestTimer` hedef sayacı **izler**: hedef değişince `endsAt`'i (yerel saat → `elapsedRealtime`)
+  çevirip geri sayar; hedef kalkarsa titreşimsiz durur; süre dolunca bir `restId` için **tek kez** titrer.
+- Dinlenme süresi ayarı artık `/settings/rest`'ten gelir (saat son değeri saklar; bağlantı yoksa onu kullanır);
+  ayar ekranı `setRestSeconds` olayı gönderir ve bekleyen olay varken onun değerini gösterir.
+
+### 16.3 Antrenman süresi (şema 4)
+```sql
+ALTER TABLE workouts ADD COLUMN finished_at TEXT;   -- ISO 8601 yerel saat; NULL = bitirilmedi
+```
+- `schemaVersion` 4; 3 → 4 geçişi yalnızca sütunu ekler (mevcut satırlar `NULL`). v3 veritabanını yükselten test zorunlu.
+- `Workout.finishedAt`, `WorkoutRepository.setWorkoutFinishedAt(id, DateTime?)`.
+- **Telefon "Bitir":** Antrenman ekranının üst çubuğunda; yalnızca antrenman bitirilmemişse ve 12 saatten yeniyse
+  görünür. Onay sorar → bitiş = şimdi, dinlenme durur, saatteki etkinlik kalkar, Geçmiş'e dönülür.
+- **Saatten bitirme:** `finishWorkout` artık `finished_at = createdAt` yazar (etkin antrenmansa).
+- **Bitmiş antrenman etkin olmaz:** ekranda açılsa da saate yayınlanmaz (`_republish` bitmiş antrenmanı etkinlikten
+  çıkarır). Sonradan düzenlemek bitiş saatini değiştirmez.
+- **Gösterim:** Geçmiş kartında süre ("1 sa 12 dk", "45 dk"); bitirilmemiş ve 12 saatten yeni antrenmanda Antrenman
+  ekranında canlı geçen süre ("42:13", bir saati geçince "1:02:13"). Eski (bitiş saati olmayan) antrenmanlarda
+  süre gösterilmez.
+- **Yedek biçimi 4:** antrenmanlara `finished_at` (yoksa `null`) eklenir; 1–3 okunmaya devam eder. CSV'ye
+  `finished_at` sütunu eklenir (son sütun).
+
+### 16.4 Yedek hatırlatması
+- Son başarılı **JSON** yedeğin zamanı `SettingsRepository.setLastBackupAt` ile saklanır (Ayarlar'daki
+  "Yedeği kaydet" başarıyla bitince). CSV dışa aktarma sayılmaz.
+- Geçmiş ekranının üstünde kapatılabilir uyarı: en az bir antrenman varsa **ve** son yedek yoksa ya da 14 günden
+  eskiyse **ve** uyarı son 7 gün içinde kapatılmamışsa görünür. Metin: "Son yedeğin 18 gün önce" /
+  "Henüz yedek almadın". Düğmeler: "Yedekle" (Ayarlar ekranını açar) ve kapat (×).
