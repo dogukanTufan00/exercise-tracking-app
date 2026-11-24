@@ -6,12 +6,13 @@ import 'watch_protocol.dart';
 ///
 /// Antrenman yoksa `null`. Hareketler `position` sırasıyla gelir; her hareketin taslağı
 /// [initialSetDraft] ile, "geçen sefer" setleri ise `beforeWorkoutId` ile hesaplanır.
-/// Başlık yoksa [fallbackTitle] ile başlangıç tarihinden üretilir.
+/// Başlık yoksa [fallbackTitle] ile başlangıç tarihinden üretilir. [rest] çalışan dinlenme sayacıdır (§16.2).
 Future<WatchSnapshot?> buildWatchSnapshot(
   WorkoutRepository repository,
   int workoutId, {
   required List<String> appliedEventIds,
   required String Function(DateTime startedAt) fallbackTitle,
+  WatchRest? rest,
 }) async {
   final detail = await repository.getWorkoutDetail(workoutId);
   if (detail == null) return null;
@@ -61,5 +62,6 @@ Future<WatchSnapshot?> buildWatchSnapshot(
     startedAt: startedAt,
     appliedEventIds: appliedEventIds,
     exercises: exercises,
+    rest: rest,
   );
 }

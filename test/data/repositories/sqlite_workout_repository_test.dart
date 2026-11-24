@@ -84,4 +84,70 @@ void main() {
       expect(await repo.searchExercises('bench'), [target]);
     });
   });
+
+  group('bitiş anı (şema 4, §16.3)', () {
+    test('yazılır, okunur, kaldırılır; olmayan antrenman sessizce geçer', () async {
+      final dbService =
+          DatabaseService(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      addTearDown(dbService.close);
+      final repo = SqliteWorkoutRepository(dbService);
+
+      final workout = await repo.createWorkout(
+        title: 'Upper',
+        startedAt: DateTime(2026, 11, 24, 18, 0),
+      );
+      expect(workout.finishedAt, isNull);
+
+      final end = DateTime(2026, 11, 24, 19, 12);
+      await repo.setWorkoutFinishedAt(workout.id, end);
+      expect((await repo.getWorkoutDetail(workout.id))!.workout.finishedAt, end);
+
+      await repo.setWorkoutFinishedAt(workout.id, null);
+      expect((await repo.getWorkoutDetail(workout.id))!.workout.finishedAt, isNull);
+
+      await repo.setWorkoutFinishedAt(999, end);
+      expect(await repo.getWorkoutSummaries(), hasLength(1));
+    });
+
+    test('bitiş anı özette ve detayda görünür', () async {
+      final dbService =
+          DatabaseService(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      addTearDown(dbService.close);
+      final repo = SqliteWorkoutRepository(dbService);
+
+      final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 24, 18, 0));
+      final end = DateTime(2026, 11, 24, 18, 45);
+      await repo.setWorkoutFinishedAt(workout.id, end);
+
+      final summaries = await repo.getWorkoutSummaries();
+      expect(summaries.single.workout.finishedAt, end);
+      final detail = await repo.getWorkoutDetail(workout.id);
+      expect(detail!.workout.finishedAt, end);
+    });
+
+    test('dışa aktarma bitiş anını taşır, içe aktarma yazar', () async {
+      final sourceService =
+          DatabaseService(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      addTearDown(sourceService.close);
+      final source = SqliteWorkoutRepository(sourceService);
+      final finished = await source.createWorkout(startedAt: DateTime(2026, 11, 20, 18, 0));
+      final end = DateTime(2026, 11, 20, 19, 5);
+      await source.setWorkoutFinishedAt(finished.id, end);
+      await source.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 0));
+
+      final data = await source.exportBackup();
+      expect(data.workouts.map((w) => w.finishedAt), [end, null]);
+
+      final targetService =
+          DatabaseService(factory: databaseFactoryFfi, path: inMemoryDatabasePath);
+      addTearDown(targetService.close);
+      final target = SqliteWorkoutRepository(targetService);
+      await target.importBackup(data);
+
+      final imported = await target.getWorkoutSummaries();
+      final byStart = {for (final s in imported) s.workout.startedAt: s.workout};
+      expect(byStart[DateTime(2026, 11, 20, 18, 0)]!.finishedAt, end);
+      expect(byStart[DateTime(2026, 11, 21, 18, 0)]!.finishedAt, isNull);
+    });
+  });
 }

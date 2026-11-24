@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+
 /// Telefonda dinlenme bildirimi ve titreşimi (§16.2). Gerçeği Kotlin köprüsüyle konuşur
 /// (MethodChannel `exercise_tracker/rest`, Kotlin: `android/app/src/main/kotlin/.../RestNotifications.kt`);
 /// testlerde `FakeRestNotifier`. Hiçbir metot hata fırlatmaz; Android dışında ya da izin yoksa sessizce geçer.
@@ -24,4 +26,47 @@ abstract interface class RestNotifier {
 /// - `cancel`
 /// - `notifyFinished` argüman `{"vibrate": bool}`
 /// - `requestPermission` → bool
-// TODO(dalga 16, CB): MethodChannelRestNotifier bu dosyada; PlatformException ve MissingPluginException yutulur.
+class MethodChannelRestNotifier implements RestNotifier {
+  static const MethodChannel _channel = MethodChannel('exercise_tracker/rest');
+
+  @override
+  Future<void> showCountdown({
+    required DateTime endsAt,
+    required int totalSeconds,
+    required String title,
+  }) =>
+      _invoke('showCountdown', {
+        'endsAtMillis': endsAt.millisecondsSinceEpoch,
+        'totalSeconds': totalSeconds,
+        'title': title,
+      });
+
+  @override
+  Future<void> cancel() => _invoke('cancel');
+
+  @override
+  Future<void> notifyFinished({required bool vibrate}) =>
+      _invoke('notifyFinished', {'vibrate': vibrate});
+
+  @override
+  Future<bool> requestPermission() async {
+    try {
+      final granted = await _channel.invokeMethod<bool>('requestPermission');
+      return granted ?? false;
+    } on PlatformException {
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
+  Future<void> _invoke(String method, [Object? arguments]) async {
+    try {
+      await _channel.invokeMethod<void>(method, arguments);
+    } on PlatformException {
+      // Bildirim kanalı ya da izin yoksa sessizce geçilir.
+    } on MissingPluginException {
+      // Testlerde ya da Android dışı platformlarda kanal yok.
+    }
+  }
+}

@@ -45,6 +45,21 @@ interface WorkoutSyncRepository {
 
     /** Bekleyen başlatmayı kuyruktan siler (telefon henüz uygulamadıysa antrenman oluşmaz). */
     suspend fun cancelPendingStart()
+
+    /**
+     * Gösterilen dinlenme sayacını [deltaSeconds] kadar uzatır ya da kısaltır (§16.2). Gösterilen sayaç yoksa
+     * bir şey yapmaz; olayın `restId`'si gösterilen sayacınkidir.
+     */
+    suspend fun adjustRest(deltaSeconds: Int)
+
+    /** Gösterilen dinlenme sayacını atlar (§16.2). Gösterilen sayaç yoksa bir şey yapmaz. */
+    suspend fun skipRest()
+
+    /** Varsayılan dinlenme süresi (saniye): telefondan gelen son değer; bekleyen bir ayar varsa onun değeri (iyimser). */
+    val restSeconds: StateFlow<Int>
+
+    /** Varsayılan dinlenme süresini ayarlar (15 – 600 sn aralığına sınırlanır); telefon bağlı değilse olay bekler. */
+    suspend fun setRestSeconds(seconds: Int)
 }
 
 /** Bekleyen başlatma: hangi gün (null = boş antrenman) ve ekranda gösterilecek ad. */

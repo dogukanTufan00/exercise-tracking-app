@@ -85,7 +85,10 @@ class WatchProtocolTest {
 
         assertEquals("addSet", obj.getValue("type").toString().trim('"'))
         assertEquals(
-            setOf("type", "protocol", "eventId", "workoutId", "workoutExerciseId", "weightKg", "reps", "createdAt"),
+            setOf(
+                "type", "protocol", "eventId", "workoutId", "workoutExerciseId", "weightKg", "reps", "createdAt",
+                "restSeconds",
+            ),
             obj.keys,
         )
     }
@@ -210,5 +213,71 @@ class WatchProtocolTest {
         assertEquals(events, decoded)
         assertTrue(decoded[0] is AddSetEvent)
         assertTrue(decoded[1] is DeleteSetEvent)
+    }
+
+    @Test
+    fun snapshotWithoutRest_readsNull() {
+        val snapshot = ProtocolJson.decodeFromString(WatchSnapshot.serializer(), snapshotJson)
+
+        assertNull(snapshot.rest)
+    }
+
+    @Test
+    fun snapshotWithRest_readsRest() {
+        val json = snapshotJson.replace(
+            "\"appliedEventIds\": [\"5b0e\", \"7c1f\"],",
+            "\"appliedEventIds\": [\"5b0e\", \"7c1f\"],\n" +
+                "  \"rest\": { \"restId\": \"r1\", \"endsAt\": \"2026-11-24T18:42:30.000\", \"totalSeconds\": 90 },",
+        )
+
+        val snapshot = ProtocolJson.decodeFromString(WatchSnapshot.serializer(), json)
+
+        assertEquals(WatchRest("r1", "2026-11-24T18:42:30.000", 90), snapshot.rest)
+    }
+
+    @Test
+    fun restEvents_readDartJson() {
+        val adjust = ProtocolJson.decodeFromString(
+            WatchEvent.serializer(),
+            """{"protocol":1,"eventId":"e1","type":"adjustRest","workoutId":42,"restId":"r1","deltaSeconds":-15,"createdAt":"2026-11-24T18:41:00.000"}""",
+        )
+        val skip = ProtocolJson.decodeFromString(
+            WatchEvent.serializer(),
+            """{"protocol":1,"eventId":"e2","type":"skipRest","workoutId":42,"restId":"r1","createdAt":"2026-11-24T18:41:10.000"}""",
+        )
+        val seconds = ProtocolJson.decodeFromString(
+            WatchEvent.serializer(),
+            """{"protocol":1,"eventId":"e3","type":"setRestSeconds","seconds":120,"createdAt":"2026-11-24T18:41:20.000"}""",
+        )
+
+        assertEquals(
+            AdjustRestEvent(eventId = "e1", workoutId = 42, createdAt = "2026-11-24T18:41:00.000", restId = "r1", deltaSeconds = -15),
+            adjust,
+        )
+        assertEquals(SkipRestEvent(eventId = "e2", workoutId = 42, createdAt = "2026-11-24T18:41:10.000", restId = "r1"), skip)
+        assertEquals(SetRestSecondsEvent(eventId = "e3", createdAt = "2026-11-24T18:41:20.000", seconds = 120), seconds)
+    }
+
+    @Test
+    fun addSetRestSeconds_roundTripsAndDefaultsToNull() {
+        val event = AddSetEvent(
+            eventId = "a",
+            workoutId = 42,
+            createdAt = "2026-11-24T18:41:05.000",
+            workoutExerciseId = 101,
+            weightKg = 42.5,
+            reps = 8,
+            restSeconds = 120,
+        )
+
+        val encoded = ProtocolJson.encodeToString(WatchEvent.serializer(), event)
+
+        assertTrue(encoded.contains("\"restSeconds\":120"))
+        assertEquals(event, ProtocolJson.decodeFromString(WatchEvent.serializer(), encoded))
+        val old = ProtocolJson.decodeFromString(
+            WatchEvent.serializer(),
+            """{"protocol":1,"eventId":"b","type":"addSet","workoutId":42,"workoutExerciseId":101,"weightKg":40.0,"reps":10,"createdAt":"2026-11-24T18:41:05.000"}""",
+        ) as AddSetEvent
+        assertNull(old.restSeconds)
     }
 }

@@ -15,7 +15,7 @@ class DatabaseService {
 
   DatabaseService._(this._factory, this._path);
 
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
 
   /// Her biri ayrı çalıştırılan şema ifadeleri (docs/ARCHITECTURE.md §4 ile birebir).
   static const List<String> _schemaStatements = [
@@ -118,12 +118,21 @@ class DatabaseService {
     'ALTER TABLE workout_exercises ADD COLUMN target_weight_kg REAL',
   ];
 
+  /// Sürüm 4 ifadeleri: antrenman bitiş anı (docs/ARCHITECTURE.md §16.3). Yalnızca NULL kabul eden bir sütun.
+  static const List<String> _schemaV4Statements = [
+    'ALTER TABLE workouts ADD COLUMN finished_at TEXT',
+  ];
+
   /// Yalnızca testler için: sürüm 1 şema ifadeleri (gerçek bir v1 veritabanı kurmak için).
   static List<String> get schemaV1Statements => _schemaStatements;
 
   /// Yalnızca testler için: sürüm 2 şema ifadeleri (gerçek bir v2 veritabanı kurmak için).
   @visibleForTesting
   static List<String> get schemaV2Statements => _schemaV2Statements;
+
+  /// Yalnızca testler için: sürüm 3 şema ifadeleri (gerçek bir v3 veritabanı kurmak için).
+  @visibleForTesting
+  static List<String> get schemaV3Statements => _schemaV3Statements;
 
   final DatabaseFactory _factory;
   final String? _path;
@@ -182,6 +191,9 @@ class DatabaseService {
       for (final statement in _schemaV3Statements) {
         await txn.execute(statement);
       }
+      for (final statement in _schemaV4Statements) {
+        await txn.execute(statement);
+      }
     });
   }
 
@@ -189,7 +201,8 @@ class DatabaseService {
   /// o sürümün yeni tablolarını/indexlerini ekle; mevcut tablolar silinmez, satırlar değişmez.
   /// Sürüm 1 → 2 (ölçümler): tek transaction'da yeni tablolar ve yerleşik türler.
   /// Sürüm 2 → 3 (programlar): tek transaction'da yeni tablolar ve mevcut tablolara NULL sütunlar.
-  /// v1'den açılan veritabanı iki bloğu da sırayla çalıştırır.
+  /// Sürüm 3 → 4 (antrenman bitiş anı): `workouts.finished_at` sütunu; mevcut satırlar NULL kalır.
+  /// Eski bir sürümden açılan veritabanı, uygun blokların tümünü sırayla çalıştırır.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       await db.transaction((txn) async {
@@ -202,6 +215,13 @@ class DatabaseService {
     if (oldVersion < 3) {
       await db.transaction((txn) async {
         for (final statement in _schemaV3Statements) {
+          await txn.execute(statement);
+        }
+      });
+    }
+    if (oldVersion < 4) {
+      await db.transaction((txn) async {
+        for (final statement in _schemaV4Statements) {
           await txn.execute(statement);
         }
       });

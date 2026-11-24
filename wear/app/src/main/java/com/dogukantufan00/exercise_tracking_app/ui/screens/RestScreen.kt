@@ -19,6 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,8 +64,24 @@ fun RestScreen(
     // Antrenman servisi (ekran kapalıyken de çalışan sayaç) yoksa sayaç ekran açıkken çalışır.
     KeepScreenOn(enabled = rest != null && !hasAllPermissions(context, SessionController.requiredPermissions()))
 
+    // Ekran yalnızca bir kez kapanır: süre bitişi, "Atla" ya da telefondan atlanma aynı anda gelse de iki kez geri gitmez.
+    var left by remember { mutableStateOf(false) }
+    fun leave() {
+        if (!left) {
+            left = true
+            onDone()
+        }
+    }
+    // Sayaç ekran açıkken kalkarsa (telefonda atlandı ya da bitti) geri dön. İlk karede sayaç henüz
+    // gelmemiş olabilir; bu yüzden yalnızca bir kez çalıştığı görüldükten sonra dönülür.
+    var sawRest by remember { mutableStateOf(false) }
+    val running = rest != null
+    LaunchedEffect(running) {
+        if (running) sawRest = true else if (sawRest) leave()
+    }
+
     LaunchedEffect(Unit) {
-        viewModel.restFinished.collect { onDone() }
+        viewModel.restFinished.collect { leave() }
     }
 
     // Kaydırılabilir liste yerine sabit düzen: yuvarlak ekranda ölçeklenip kaymasın.
@@ -110,7 +129,7 @@ fun RestScreen(
                         content = MaterialTheme.colorScheme.onPrimary,
                         onClick = {
                             viewModel.skipRest()
-                            onDone()
+                            leave()
                         },
                     )
                     RoundRestButton(

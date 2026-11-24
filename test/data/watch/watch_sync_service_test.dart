@@ -5,6 +5,8 @@ import 'package:exercise_tracking_app/data/watch/watch_sync_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/fake_program_repository.dart';
+import '../../fakes/fake_rest_store.dart';
+import '../../fakes/fake_settings_repository.dart';
 import '../../fakes/fake_wear_channel.dart';
 import '../../fakes/fake_watch_sync_store.dart';
 import '../../fakes/fake_workout_repository.dart';
@@ -18,6 +20,8 @@ void main() {
   late WatchSyncService service;
   late int workoutId;
   late int workoutExerciseId;
+  late FakeRestStore restStore;
+  late FakeSettingsRepository settings;
 
   WatchSyncService makeService() => WatchSyncService(
         repository: repo,
@@ -25,6 +29,8 @@ void main() {
         channel: channel,
         store: store,
         fallbackTitle: (_) => 'Tarih',
+        restStore: restStore,
+        settings: settings,
         clock: () => now,
       );
 
@@ -33,6 +39,8 @@ void main() {
     repo = FakeWorkoutRepository();
     programRepo = FakeProgramRepository(repo);
     channel = FakeWearChannel();
+    restStore = FakeRestStore();
+    settings = FakeSettingsRepository();
     final exercise = await repo.createExercise('Bench Press', MuscleGroup.chest);
     final workout = await repo.createWorkout(startedAt: DateTime(2026, 11, 21, 18, 30));
     workoutId = workout.id;
@@ -530,5 +538,159 @@ void main() {
     expect(channel.clearProgramCount, 1);
     final payload = jsonDecode(channel.appliedPayloads.last) as Map<String, Object?>;
     expect(payload['appliedEventIds'], ['old']);
+  });
+
+  // ------------------------------------------------------------ Dinlenme (§16.2)
+
+  /// Şimdiki saatte (19:00) yapılmış bir addSet; dinlenmesi `restSeconds` ile başlar.
+  String restAddEvent(
+    String eventId, {
+    String createdAt = '2026-11-21T19:00:00.000',
+    int? restSeconds,
+  }) {
+    return jsonEncode({
+      'protocol': 1,
+      'eventId': eventId,
+      'type': 'addSet',
+      'workoutId': workoutId,
+      'workoutExerciseId': workoutExerciseId,
+      'weightKg': 40,
+      'reps': 10,
+      'createdAt': createdAt,
+      'restSeconds': restSeconds,
+    });
+  }
+
+  String restEvent(String eventId, Map<String, Object?> fields) {
+    return jsonEncode({
+      'protocol': 1,
+      'eventId': eventId,
+      'workoutId': workoutId,
+      'createdAt': '2026-11-21T19:00:10.000',
+      ...fields,
+    });
+  }
+
+  test('addSet dinlenmeyi başlatır: restId olay id, bitiş createdAt + saatin süresi', () async {
+    channel.enqueue(restAddEvent('r1', restSeconds: 60));
+
+    await service.processPendingEvents();
+
+    final rest = restStore.rest!;
+    expect(rest.restId, 'r1');
+    expect(rest.workoutId, workoutId);
+    expect(rest.endsAt, DateTime(2026, 11, 21, 19, 1));
+    expect(rest.totalSeconds, 60);
+    final snapshotRest = channel.lastSnapshot!['rest'] as Map<String, Object?>;
+    expect(snapshotRest['restId'], 'r1');
+    expect(snapshotRest['endsAt'], '2026-11-21T19:01:00.000');
+  });
+
+  test('restSeconds yoksa telefonun süre ayarı kullanılır', () async {
+    await settings.setRestSeconds(120);
+    channel.enqueue(restAddEvent('r2'));
+
+    await service.processPendingEvents();
+
+    expect(restStore.rest!.totalSeconds, 120);
+    expect(restStore.rest!.endsAt, DateTime(2026, 11, 21, 19, 2));
+  });
+
+  test('geç gelen addSet için süresi dolmuş dinlenme kaydedilmez', () async {
+    channel.enqueue(restAddEvent('late', createdAt: '2026-11-21T18:00:00.000', restSeconds: 60));
+
+    await service.processPendingEvents();
+
+    expect(await setsOf(workoutId), hasLength(1));
+    expect(restStore.rest, isNull);
+    expect(channel.lastSnapshot!['rest'], isNull);
+  });
+
+  test('adjustRest eşleşen restId için sayacı uzatır', () async {
+    channel.enqueue(restAddEvent('r3', restSeconds: 60));
+    await service.processPendingEvents();
+
+    channel.enqueue(restEvent('a1', {'type': 'adjustRest', 'restId': 'r3', 'deltaSeconds': 15}));
+    await service.processPendingEvents();
+
+    expect(restStore.rest!.totalSeconds, 75);
+    expect(restStore.rest!.endsAt, DateTime(2026, 11, 21, 19, 1, 15));
+    expect(channel.ackedIds, contains('a1'));
+  });
+
+  test('adjustRest eşleşmeyen restId yok sayılır ama işlenmiş sayılır', () async {
+    channel.enqueue(restAddEvent('r4', restSeconds: 60));
+    await service.processPendingEvents();
+
+    channel.enqueue(restEvent('a2', {'type': 'adjustRest', 'restId': 'other', 'deltaSeconds': 15}));
+    await service.processPendingEvents();
+
+    expect(restStore.rest!.totalSeconds, 60);
+    expect(store.processedEventIds, contains('a2'));
+    expect(channel.ackedIds, contains('a2'));
+  });
+
+  test('skipRest eşleşen restId sayacı kaldırır; eşleşmeyen kaldırmaz', () async {
+    channel.enqueue(restAddEvent('r5', restSeconds: 60));
+    await service.processPendingEvents();
+
+    channel.enqueue(restEvent('s1', {'type': 'skipRest', 'restId': 'nope'}));
+    await service.processPendingEvents();
+    expect(restStore.rest, isNotNull);
+
+    channel.enqueue(restEvent('s2', {'type': 'skipRest', 'restId': 'r5'}));
+    await service.processPendingEvents();
+    expect(restStore.rest, isNull);
+    expect(channel.lastSnapshot!['rest'], isNull);
+  });
+
+  test('setRestSeconds ayarı 15–600 aralığında kaydeder ve saate yayınlar', () async {
+    channel.enqueue(restEvent('set1', {'type': 'setRestSeconds', 'seconds': 120}));
+    await service.processPendingEvents();
+
+    expect(await settings.getRestSeconds(), 120);
+    expect(channel.publishedRestSeconds.last, 120);
+
+    channel.enqueue(restEvent('set2', {'type': 'setRestSeconds', 'seconds': 9999}));
+    await service.processPendingEvents();
+
+    expect(await settings.getRestSeconds(), 600);
+    expect(channel.publishedRestSeconds.last, 600);
+  });
+
+  test('finishWorkout bitiş saatini yazar, anlık durumu ve dinlenmeyi siler', () async {
+    channel.enqueue(restAddEvent('r6', restSeconds: 60));
+    await service.processPendingEvents();
+    final snapshotsBefore = channel.snapshots.length;
+
+    channel.enqueue(restEvent('f1', {'type': 'finishWorkout'}));
+    await service.processPendingEvents();
+
+    final detail = await repo.getWorkoutDetail(workoutId);
+    expect(detail!.workout.finishedAt, DateTime(2026, 11, 21, 19, 0, 10));
+    expect(store.activeWorkoutId, isNull);
+    expect(restStore.rest, isNull);
+    expect(channel.snapshots.length, snapshotsBefore);
+    expect(channel.clearCount, greaterThan(0));
+  });
+
+  test('bitmiş antrenman setActiveWorkout ile etkin olmaz', () async {
+    channel.enqueue(restEvent('f2', {'type': 'finishWorkout'}));
+    await service.processPendingEvents();
+    final snapshotsBefore = channel.snapshots.length;
+
+    await service.setActiveWorkout(workoutId);
+
+    expect(store.activeWorkoutId, isNull);
+    expect(channel.snapshots.length, snapshotsBefore);
+  });
+
+  test('dinlenme olayları restChanges akışını yayar', () async {
+    final changed = service.restChanges.first.timeout(const Duration(seconds: 2));
+    channel.enqueue(restAddEvent('r7', restSeconds: 60));
+
+    await service.processPendingEvents();
+
+    await changed;
   });
 }

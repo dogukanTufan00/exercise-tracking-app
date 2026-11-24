@@ -50,6 +50,11 @@ void main() {
               });
             }
           }
+          if (version >= 3) {
+            for (final statement in DatabaseService.schemaV3Statements) {
+              await db.execute(statement);
+            }
+          }
         },
       ),
     );
@@ -105,13 +110,13 @@ void main() {
     return {for (final row in rows) row['name'] as String};
   }
 
-  test('v1 veritabanı sürüm 3 olur, eski satırlar aynen kalır ve yerleşik türler gelir', () async {
+  test('v1 veritabanı sürüm 4 olur, eski satırlar aynen kalır ve yerleşik türler gelir', () async {
     await createVersion1Database(path);
 
     final service = DatabaseService(factory: databaseFactoryFfi, path: path);
     addTearDown(service.close);
 
-    expect(await userVersion(service), 3);
+    expect(await userVersion(service), 4);
 
     // Eski antrenman verisi değişmedi ve hâlâ okunabiliyor.
     final workouts = SqliteWorkoutRepository(service);
@@ -165,7 +170,7 @@ void main() {
     expect((await measurements.getMeasurements(types.first.id)).single, added);
   });
 
-  test('sürüm 3 veritabanı yeniden açılınca yerleşik türler çoğaltılmaz', () async {
+  test('sürüm 4 veritabanı yeniden açılınca yerleşik türler çoğaltılmaz', () async {
     await createVersion1Database(path);
 
     final first = DatabaseService(factory: databaseFactoryFfi, path: path);
@@ -175,17 +180,17 @@ void main() {
     final second = DatabaseService(factory: databaseFactoryFfi, path: path);
     addTearDown(second.close);
 
-    expect(await userVersion(second), 3);
+    expect(await userVersion(second), 4);
     final types = await SqliteMeasurementRepository(second).getMeasurementTypes();
     expect(types, hasLength(10));
   });
 
-  test('sıfırdan açılan veritabanı sürüm 3 olur, 10 yerleşik tür ve program tablolarıyla gelir',
+  test('sıfırdan açılan veritabanı sürüm 4 olur, 10 yerleşik tür ve program tablolarıyla gelir',
       () async {
     final service = DatabaseService(factory: databaseFactoryFfi, path: path);
     addTearDown(service.close);
 
-    expect(await userVersion(service), 3);
+    expect(await userVersion(service), 4);
 
     final types = await SqliteMeasurementRepository(service).getMeasurementTypes();
     expect(types, hasLength(10));
@@ -204,13 +209,13 @@ void main() {
         containsAll(['target_sets', 'target_reps', 'target_weight_kg']));
   });
 
-  test('v1 veritabanı tek seferde sürüm 3 olur: program tabloları ve yeni sütunlar eklenir', () async {
+  test('v1 veritabanı tek seferde sürüm 4 olur: program tabloları ve yeni sütunlar eklenir', () async {
     await createVersion1Database(path);
 
     final service = DatabaseService(factory: databaseFactoryFfi, path: path);
     addTearDown(service.close);
 
-    expect(await userVersion(service), 3);
+    expect(await userVersion(service), 4);
     expect(
       await tableNames(service),
       containsAll(['measurement_types', 'body_measurements', 'programs', 'program_days']),
@@ -222,14 +227,14 @@ void main() {
     expect(types, hasLength(10));
   });
 
-  test('v2 veritabanı sürüm 3 olur; eski satırlar aynen kalır, yeni sütunlar NULL, program kurulabilir',
+  test('v2 veritabanı sürüm 4 olur; eski satırlar aynen kalır, yeni sütunlar NULL, program kurulabilir',
       () async {
     await createLegacyDatabase(path, 2);
 
     final service = DatabaseService(factory: databaseFactoryFfi, path: path);
     addTearDown(service.close);
 
-    expect(await userVersion(service), 3);
+    expect(await userVersion(service), 4);
 
     // Eski antrenman, hareket notu ve setleri aynen okunuyor; yeni sütunlar boş.
     final workouts = SqliteWorkoutRepository(service);
@@ -273,5 +278,31 @@ void main() {
     final oldDetail = await workouts.getWorkoutDetail(summaries.single.workout.id);
     expect(oldDetail!.workout.programDayId, isNull);
     expect(oldDetail.exercises.single.workoutExercise.target, isNull);
+  });
+
+  test('v3 veritabanı sürüm 4 olur: antrenmanlar aynen kalır, bitiş anı NULL ve yazılabilir', () async {
+    await createLegacyDatabase(path, 3);
+
+    final service = DatabaseService(factory: databaseFactoryFfi, path: path);
+    addTearDown(service.close);
+
+    expect(await userVersion(service), 4);
+    expect(await columnNames(service, 'workouts'), contains('finished_at'));
+
+    final workouts = SqliteWorkoutRepository(service);
+    final summaries = await workouts.getWorkoutSummaries();
+    expect(summaries, hasLength(1));
+    final id = summaries.single.workout.id;
+    expect(summaries.single.workout.title, 'Upper');
+    expect(summaries.single.workout.finishedAt, isNull);
+
+    final detail = await workouts.getWorkoutDetail(id);
+    expect(detail!.workout.finishedAt, isNull);
+    expect(detail.exercises.single.workoutExercise.note, 'Yavaş indir');
+    expect(detail.exercises.single.sets.single.weightKg, 60);
+
+    final finished = DateTime(2026, 10, 15, 19, 30);
+    await workouts.setWorkoutFinishedAt(id, finished);
+    expect((await workouts.getWorkoutDetail(id))!.workout.finishedAt, finished);
   });
 }

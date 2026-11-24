@@ -26,6 +26,7 @@ String encodeBackupJson(BackupData data) {
         {
           'started_at': workout.startedAt.toIso8601String(),
           'title': workout.title,
+          'finished_at': workout.finishedAt?.toIso8601String(),
           'exercises': [
             for (final exercise in workout.exercises)
               {
@@ -188,9 +189,11 @@ BackupWorkout _decodeWorkout(Object? value, String path) {
   for (var i = 0; i < exerciseList.length; i++) {
     exercises.add(_decodeWorkoutExercise(exerciseList[i], '$path.exercises[$i]'));
   }
+  // "finished_at" biçim 4'te eklendi; 1–3 dosyalarında anahtar yoktur ve null okunur.
   return BackupWorkout(
     startedAt: _requireDate(item, 'started_at', path),
     title: _optionalString(item, 'title', path),
+    finishedAt: _optionalDate(item, 'finished_at', path),
     exercises: exercises,
   );
 }
@@ -353,6 +356,12 @@ DateTime _requireDate(Map<String, dynamic> map, String key, String path) {
   final parsed = value is String ? DateTime.tryParse(value) : null;
   if (parsed == null) _corrupt(_fieldPath(path, key));
   return parsed;
+}
+
+/// Anahtar yoksa ya da `null` ise `null`; varsa [_requireDate] kuralları uygulanır.
+DateTime? _optionalDate(Map<String, dynamic> map, String key, String path) {
+  if (map[key] == null) return null;
+  return _requireDate(map, key, path);
 }
 
 MuscleGroup _requireMuscleGroup(

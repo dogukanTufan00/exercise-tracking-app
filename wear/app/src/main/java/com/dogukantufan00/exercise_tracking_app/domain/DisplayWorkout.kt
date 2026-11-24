@@ -1,13 +1,18 @@
 package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.AdjustRestEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
 import com.dogukantufan00.exercise_tracking_app.data.FinishWorkoutEvent
+import com.dogukantufan00.exercise_tracking_app.data.SetRestSecondsEvent
+import com.dogukantufan00.exercise_tracking_app.data.SkipRestEvent
 import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
 import com.dogukantufan00.exercise_tracking_app.data.WatchSnapshot
 import com.dogukantufan00.exercise_tracking_app.data.WatchTarget
+import java.time.LocalDateTime
+import kotlin.math.max
 
 /*
  * Saatte gösterilen antrenman: telefonun son anlık durumu + henüz onaylanmamış olaylar (iyimser durum,
@@ -20,6 +25,15 @@ data class DisplayWorkout(
     val exercises: List<DisplayExercise>,
     /** Telefona henüz ulaşmamış (onaylanmamış) olay var mı. */
     val hasPendingEvents: Boolean,
+    /** Gösterilen dinlenme sayacı (iyimser); yoksa null (§16.2). */
+    val rest: DisplayRest? = null,
+)
+
+/** İyimser dinlenme sayacı. [endsAt] saat dilimsiz yerel bitiş anıdır; saat bunu sayaç hedefi olarak izler. */
+data class DisplayRest(
+    val restId: String,
+    val endsAt: LocalDateTime,
+    val totalSeconds: Int,
 )
 
 data class DisplayExercise(
@@ -52,12 +66,17 @@ data class DisplaySet(
  * - [snapshot] null ise null.
  * - Id'si `appliedEventIds`'te OLMAYAN olaylar uygulanır, [pending] sırasıyla.
  * - AddSetEvent: `workoutId`'si anlık durumunkiyle aynıysa ilgili hareketin sonuna bekleyen set eklenir; hareketin
- *   taslağı bu setin değerleri olur. Hareket anlık durumda yoksa olay yok sayılır.
+ *   taslağı bu setin değerleri olur. Hareket anlık durumda yoksa olay yok sayılır. `restSeconds` varsa sayaç
+ *   restId = eventId, endsAt = createdAt + süre olarak başlar (süre 15 sn – 10 dk aralığına sınırlanır).
  * - DeleteSetEvent: `workoutId` aynıysa o id'li onaylı set listeden çıkarılır; set yoksa yok sayılır.
+ * - AdjustRestEvent: `workoutId` ve `restId` gösterilen sayaçla aynıysa endsAt delta kadar kayar,
+ *   totalSeconds en az 1 olur.
+ * - SkipRestEvent: `workoutId` ve `restId` aynıysa sayaç kalkar (rest = null).
+ * - SetRestSecondsEvent: sayacı etkilemez; yalnızca bekleyen olay sayılır.
  * - StartWorkoutEvent: iyimser durumu değiştirmez (§15.8); antrenman telefonda oluşunca anlık durumda görünür.
  * - FinishWorkoutEvent: `workoutId` anlık durumunkiyle aynıysa sonuç null olur (antrenman saatte hemen kapanır).
  * - Her hareketin setleri sonunda 1, 2, 3… olarak numaralanır.
- * - [DisplayWorkout.hasPendingEvents]: en az bir olay uygulandıysa true.
+ * - [DisplayWorkout.hasPendingEvents]: uygulanan bir set, sayaç ya da ayar olayı varsa true.
  */
 fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): DisplayWorkout? {
     if (snapshot == null) return null
@@ -82,6 +101,9 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
         drafts[exercise.workoutExerciseId] = exercise.draft
     }
 
+    var rest: DisplayRest? = snapshot.rest?.let {
+        DisplayRest(restId = it.restId, endsAt = LocalDateTime.parse(it.endsAt), totalSeconds = it.totalSeconds)
+    }
     var hasPendingEvents = false
     for (event in events) {
         when (event) {
@@ -98,6 +120,14 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
                         ),
                     )
                     drafts[event.workoutExerciseId] = WatchSetValue(event.weightKg, event.reps)
+                    event.restSeconds?.let { seconds ->
+                        val total = RestTimer.clampSeconds(seconds)
+                        rest = DisplayRest(
+                            restId = event.eventId,
+                            endsAt = LocalDateTime.parse(event.createdAt).plusSeconds(total.toLong()),
+                            totalSeconds = total,
+                        )
+                    }
                     hasPendingEvents = true
                 }
             }
@@ -108,6 +138,24 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
                     hasPendingEvents = true
                 }
             }
+            is AdjustRestEvent -> {
+                val current = rest
+                if (event.workoutId == snapshot.workoutId && current != null && current.restId == event.restId) {
+                    rest = current.copy(
+                        endsAt = current.endsAt.plusSeconds(event.deltaSeconds.toLong()),
+                        totalSeconds = max(1, current.totalSeconds + event.deltaSeconds),
+                    )
+                    hasPendingEvents = true
+                }
+            }
+            is SkipRestEvent -> {
+                val current = rest
+                if (event.workoutId == snapshot.workoutId && current != null && current.restId == event.restId) {
+                    rest = null
+                    hasPendingEvents = true
+                }
+            }
+            is SetRestSecondsEvent -> hasPendingEvents = true
             is StartWorkoutEvent, is FinishWorkoutEvent -> Unit
         }
     }
@@ -126,6 +174,7 @@ fun mergeOptimistic(snapshot: WatchSnapshot?, pending: List<WatchEvent>): Displa
             )
         },
         hasPendingEvents = hasPendingEvents,
+        rest = rest,
     )
 }
 

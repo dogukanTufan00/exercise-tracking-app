@@ -6,6 +6,8 @@ import 'package:exercise_tracking_app/data/watch/wear_background.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/fake_program_repository.dart';
+import '../../fakes/fake_rest_store.dart';
+import '../../fakes/fake_settings_repository.dart';
 import '../../fakes/fake_wear_channel.dart';
 import '../../fakes/fake_watch_sync_store.dart';
 import '../../fakes/fake_workout_repository.dart';
@@ -32,6 +34,8 @@ void main() {
       channel: channel,
       store: store,
       fallbackTitle: (_) => 'Tarih',
+      restStore: FakeRestStore(),
+      settings: FakeSettingsRepository(),
       clock: () => DateTime(2026, 11, 22, 19),
     );
   });

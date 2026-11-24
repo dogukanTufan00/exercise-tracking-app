@@ -3,20 +3,25 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
+import '../../domain/rest_timer.dart';
 import '../models/models.dart';
 import '../repositories/program_repository.dart';
+import '../repositories/settings_repository.dart';
 import '../repositories/workout_repository.dart';
+import '../rest/rest_store.dart';
 import 'watch_protocol.dart';
 import 'watch_snapshot_builder.dart';
 import 'watch_sync_store.dart';
 import 'wear_channel.dart';
 
-/// Telefon tarafında saat eşlemesinin tüm mantığı (bkz. docs/ARCHITECTURE.md §15.3–15.8).
+/// Telefon tarafında saat eşlemesinin tüm mantığı (bkz. docs/ARCHITECTURE.md §15.3–15.8, §16.2).
 ///
 /// - Etkin antrenmanın anlık durumunu saate yayınlar ([setActiveWorkout], [workoutChanged], [activeWorkoutChanged]).
 /// - Etkin programı saate yayınlar ([programChanged]).
 /// - Saatten gelen olayları işler ([processPendingEvents]): her olay tam bir kez uygulanır.
 /// - Olaylarla değişen antrenmanları [workoutUpdates] ile duyurur (açık Antrenman ekranı yenilensin diye).
+/// - Dinlenme sayacını ve süre ayarını [restStore] / [settings] ile yönetir; değiştiğinde [restChanges] yayar
+///   ve ayarı [restSettingsChanged] ile saate yayınlar (§16.2).
 ///
 /// Hiçbir metot dışarıya hata fırlatmaz: saat tarafındaki sorunlar telefon uygulamasını bozmaz.
 ///
@@ -29,6 +34,8 @@ class WatchSyncService {
     required this.channel,
     required this.store,
     required this.fallbackTitle,
+    required this.restStore,
+    required this.settings,
     DateTime Function()? clock,
   }) : clock = clock ?? DateTime.now;
 
@@ -41,6 +48,12 @@ class WatchSyncService {
 
   /// Başlıksız antrenmanın saatte gösterilecek adı (main.dart `formatWorkoutDate` verir).
   final String Function(DateTime startedAt) fallbackTitle;
+
+  /// Çalışan dinlenme sayacı (§16.2); telefon uygulamasıyla ortak kayıt.
+  final RestStore restStore;
+
+  /// Dinlenme süresi ayarı (saate yayınlanır, saatten değiştirilebilir).
+  final SettingsRepository settings;
   final DateTime Function() clock;
 
   /// Etkin antrenman bu süreden eski başlamışsa temizlenir; saatten gelen başlatma olayı da bu süreden
@@ -54,13 +67,14 @@ class WatchSyncService {
   static final RegExp _rawEventIdPattern = RegExp(r'"eventId"\s*:\s*"([^"]+)"');
 
   final StreamController<int> _updates = StreamController<int>.broadcast();
+  final StreamController<void> _restChanges = StreamController<void>.broadcast();
   StreamSubscription<void>? _eventsSubscription;
 
   /// Olay işleme zinciri: bir çağrı bitmeden ikincisi başlamaz.
   Future<void> _queue = Future<void>.value();
 
-  /// Kanalı dinlemeye başlar, kuyruktaki olayları işler, etkin antrenmanı ve programı yeniden yayınlar
-  /// (12 saat kuralı burada da uygulanır). Uygulama açılışında bir kez çağrılır.
+  /// Kanalı dinlemeye başlar, kuyruktaki olayları işler, etkin antrenmanı, programı ve dinlenme ayarını
+  /// yeniden yayınlar (12 saat kuralı burada da uygulanır). Uygulama açılışında bir kez çağrılır.
   Future<void> start() async {
     try {
       await _eventsSubscription?.cancel();
@@ -72,6 +86,7 @@ class WatchSyncService {
       await _republish();
       await programChanged();
       await _publishApplied();
+      await restSettingsChanged();
     } catch (error) {
       debugPrint('Saat eşlemesi başlatılamadı: $error');
     }
@@ -154,8 +169,22 @@ class WatchSyncService {
     }
   }
 
+  /// Dinlenme süresi ayarını (`/settings/rest`) saate yayınlar (§16.2). Ayar her değiştiğinde ve
+  /// `start()`'ta çağrılır. Hata fırlatmaz.
+  Future<void> restSettingsChanged() async {
+    try {
+      await channel.publishRestSettings(await settings.getRestSeconds());
+    } catch (error) {
+      debugPrint('Dinlenme ayarı saate yayınlanamadı: $error');
+    }
+  }
+
   /// Saatten gelen olaylarla değişen antrenmanların id'leri (yayın akışı).
   Stream<int> get workoutUpdates => _updates.stream;
+
+  /// Dinlenme sayacı ya da süre ayarı olayla değiştiğinde tur sonunda bir kez yayılır (§16.2). Dinleyen
+  /// `RestController` yeniden okur.
+  Stream<void> get restChanges => _restChanges.stream;
 
   /// Dinleyicileri kapatır.
   Future<void> dispose() async {
@@ -163,6 +192,7 @@ class WatchSyncService {
       await _eventsSubscription?.cancel();
       _eventsSubscription = null;
       if (!_updates.isClosed) await _updates.close();
+      if (!_restChanges.isClosed) await _restChanges.close();
     } catch (error) {
       debugPrint('Saat servisi kapatılamadı: $error');
     }
@@ -170,12 +200,19 @@ class WatchSyncService {
 
   // ------------------------------------------------------------ Yayınlama
 
-  /// Etkin antrenmanı saate yayınlar. Etkin antrenman yoksa, silinmişse ya da 12 saatten eskiyse
+  /// Etkin antrenmanı saate yayınlar. Etkin antrenman yoksa, silinmişse, bitirilmişse ya da 12 saatten eskiyse
   /// etkinliği temizler ve anlık durumu siler.
   Future<void> _republish() async {
     try {
       final workoutId = await store.getActiveWorkoutId();
       if (workoutId == null) {
+        await channel.clearSnapshot();
+        return;
+      }
+
+      final detail = await repository.getWorkoutDetail(workoutId);
+      if (detail == null || detail.workout.finishedAt != null) {
+        await store.setActiveWorkoutId(null);
         await channel.clearSnapshot();
         return;
       }
@@ -186,6 +223,7 @@ class WatchSyncService {
         workoutId,
         appliedEventIds: _lastAppliedIds(processed),
         fallbackTitle: fallbackTitle,
+        rest: await _watchRestFor(workoutId),
       );
       if (snapshot == null ||
           clock().difference(snapshot.startedAt) > activeWorkoutMaxAge) {
@@ -197,6 +235,19 @@ class WatchSyncService {
     } catch (error) {
       debugPrint('Anlık durum yayınlanamadı: $error');
     }
+  }
+
+  /// Kayıtlı dinlenme sayacı [workoutId]'ye aitse ve süresi dolmadıysa saate giden biçimini döner (§16.2).
+  Future<WatchRest?> _watchRestFor(int workoutId) async {
+    final state = await restStore.getRest();
+    if (state == null || state.workoutId != workoutId || isRestFinished(state, clock())) {
+      return null;
+    }
+    return WatchRest(
+      restId: state.restId,
+      endsAt: state.endsAt,
+      totalSeconds: state.totalSeconds,
+    );
   }
 
   /// İşlenmiş olay id'lerinin son [maxAppliedEventIds] tanesini `/events/applied`'e yazar (§15.8).
@@ -232,6 +283,8 @@ class WatchSyncService {
       final ackIds = <String>[];
       final changedWorkoutIds = <int>{};
       var newlyProcessed = 0;
+      var restChanged = false;
+      var settingsChanged = false;
 
       for (final text in raw) {
         final WatchEvent event;
@@ -251,7 +304,8 @@ class WatchSyncService {
           continue;
         }
 
-        final changed = await _apply(event, activeId);
+        final effect = await _apply(event, activeId);
+        final changed = effect.workoutId;
         if (changed != null) {
           changedWorkoutIds.add(changed);
           // Saatten başlatılan antrenman etkin olur; sonraki set olayları onu hedefler.
@@ -259,6 +313,8 @@ class WatchSyncService {
           // Bitirilen antrenmana sonradan gelen set olayları yok sayılır.
           if (event is FinishWorkoutEvent) activeId = null;
         }
+        restChanged = restChanged || effect.restChanged;
+        settingsChanged = settingsChanged || effect.settingsChanged;
         processed.add(id);
         processedIds.add(id);
         ackIds.add(id);
@@ -276,6 +332,10 @@ class WatchSyncService {
         await _republish();
         await _publishApplied();
       }
+      if (settingsChanged) await restSettingsChanged();
+      if ((restChanged || settingsChanged) && !_restChanges.isClosed) {
+        _restChanges.add(null);
+      }
       for (final id in changedWorkoutIds) {
         if (!_updates.isClosed) _updates.add(id);
       }
@@ -284,29 +344,30 @@ class WatchSyncService {
     }
   }
 
-  /// Olayı uygular. Etkisi olduysa etkilenen antrenmanın id'sini döner; yok sayıldıysa ya da hata olduysa `null`.
-  /// Her iki durumda da çağıran olayı işlenmiş sayar.
-  Future<int?> _apply(WatchEvent event, int? activeId) async {
+  /// Olayı uygular. Etkisi olduysa etkilenen antrenmanın id'sini ve dinlenme/ayar değişikliğini döner; yok sayıldıysa
+  /// ya da hata olduysa etkisiz sonuç. Her iki durumda da çağıran olayı işlenmiş sayar.
+  Future<_Effect> _apply(WatchEvent event, int? activeId) async {
     try {
-      if (event.protocol != watchProtocolVersion) return null;
+      if (event.protocol != watchProtocolVersion) return _noEffect;
       return switch (event) {
         StartWorkoutEvent() => await _applyStart(event),
         AddSetEvent() => await _applyAddSet(event, activeId),
         DeleteSetEvent() => await _applyDeleteSet(event, activeId),
         FinishWorkoutEvent() => await _applyFinish(event, activeId),
-        // TODO(dalga 16, CB): dinlenme olaylarını uygula (§16.2).
-        AdjustRestEvent() || SkipRestEvent() || SetRestSecondsEvent() => null,
+        AdjustRestEvent() => await _applyAdjustRest(event, activeId),
+        SkipRestEvent() => await _applySkipRest(event, activeId),
+        SetRestSecondsEvent() => await _applySetRestSeconds(event),
       };
     } catch (error) {
       debugPrint('Saat olayı uygulanamadı: $error');
-      return null;
+      return _noEffect;
     }
   }
 
   /// Saatten başlatma: gün varsa ondan, yoksa boş antrenman açılır ve etkin olur. Etkin antrenman
   /// olup olmadığına bakılmaz.
-  Future<int?> _applyStart(StartWorkoutEvent event) async {
-    if (clock().difference(event.createdAt) > activeWorkoutMaxAge) return null;
+  Future<_Effect> _applyStart(StartWorkoutEvent event) async {
+    if (clock().difference(event.createdAt) > activeWorkoutMaxAge) return _noEffect;
 
     final dayId = event.programDayId;
     Workout workout;
@@ -320,51 +381,110 @@ class WatchSyncService {
         );
       } on ArgumentError {
         // Gün silinmiş: olay yok sayılır.
-        return null;
+        return _noEffect;
       }
     }
     await store.setActiveWorkoutId(workout.id);
-    return workout.id;
+    return _Effect(workoutId: workout.id);
   }
 
-  Future<int?> _applyAddSet(AddSetEvent event, int? activeId) async {
-    if (event.workoutId != activeId) return null;
-    if (event.weightKg < 0 || event.reps <= 0) return null;
+  /// Set eklenir ve saatin (ya da telefon ayarının) süresiyle dinlenme başlar (§16.2). Geç gelen ve süresi
+  /// çoktan dolmuş dinlenme kaydedilmez.
+  Future<_Effect> _applyAddSet(AddSetEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return _noEffect;
+    if (event.weightKg < 0 || event.reps <= 0) return _noEffect;
 
     final detail = await repository.getWorkoutDetail(event.workoutId);
-    if (detail == null) return null;
+    if (detail == null) return _noEffect;
     final exists = detail.exercises
         .any((e) => e.workoutExercise.id == event.workoutExerciseId);
-    if (!exists) return null;
+    if (!exists) return _noEffect;
 
     await repository.addSet(
       event.workoutExerciseId,
       weightKg: event.weightKg,
       reps: event.reps,
     );
-    return event.workoutId;
+
+    final seconds = event.restSeconds ?? await settings.getRestSeconds();
+    final rest = startRest(
+      restId: event.eventId,
+      workoutId: event.workoutId,
+      startedAt: event.createdAt,
+      seconds: seconds,
+    );
+    final started = !isRestFinished(rest, clock());
+    if (started) await restStore.setRest(rest);
+    return _Effect(workoutId: event.workoutId, restChanged: started);
   }
 
-  Future<int?> _applyDeleteSet(DeleteSetEvent event, int? activeId) async {
-    if (event.workoutId != activeId) return null;
+  Future<_Effect> _applyDeleteSet(DeleteSetEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return _noEffect;
 
     final detail = await repository.getWorkoutDetail(event.workoutId);
-    if (detail == null) return null;
+    if (detail == null) return _noEffect;
     final owns = detail.exercises
         .any((e) => e.sets.any((set) => set.id == event.setId));
-    if (!owns) return null;
+    if (!owns) return _noEffect;
 
     await repository.deleteSet(event.setId);
-    return event.workoutId;
+    return _Effect(workoutId: event.workoutId);
   }
 
-  /// Saatten bitirme: yalnızca etkin antrenman için; etkinlik kalkar (sonraki yayın anlık durumu siler).
-  /// Antrenman kaydına dokunulmaz.
-  Future<int?> _applyFinish(FinishWorkoutEvent event, int? activeId) async {
-    if (event.workoutId != activeId) return null;
+  /// Saatten bitirme: yalnızca etkin antrenman için (§16.3). Bitiş saati [FinishWorkoutEvent.createdAt] olarak
+  /// yazılır, etkinlik kalkar, bu antrenmanın dinlenme sayacı silinir. Setler olduğu gibi kalır.
+  Future<_Effect> _applyFinish(FinishWorkoutEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return _noEffect;
+    await repository.setWorkoutFinishedAt(event.workoutId, event.createdAt);
     await store.setActiveWorkoutId(null);
-    return event.workoutId;
+
+    var restChanged = false;
+    final rest = await restStore.getRest();
+    if (rest != null && rest.workoutId == event.workoutId) {
+      await restStore.setRest(null);
+      restChanged = true;
+    }
+    return _Effect(workoutId: event.workoutId, restChanged: restChanged);
+  }
+
+  /// Saatte dinlenme ±15 sn değiştirildi. Yalnızca [AdjustRestEvent.restId] kayıtlı sayaçsa uygulanır;
+  /// sonuç bitmişse sayaç silinir (titreşimsiz).
+  Future<_Effect> _applyAdjustRest(AdjustRestEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return _noEffect;
+    final current = await restStore.getRest();
+    if (current == null || current.restId != event.restId) return _noEffect;
+
+    final next = adjustRest(current, event.deltaSeconds);
+    await restStore.setRest(isRestFinished(next, clock()) ? null : next);
+    return const _Effect(restChanged: true);
+  }
+
+  /// Saatte dinlenme atlandı. Yalnızca [SkipRestEvent.restId] kayıtlı sayaçsa uygulanır.
+  Future<_Effect> _applySkipRest(SkipRestEvent event, int? activeId) async {
+    if (event.workoutId != activeId) return _noEffect;
+    final current = await restStore.getRest();
+    if (current == null || current.restId != event.restId) return _noEffect;
+
+    await restStore.setRest(null);
+    return const _Effect(restChanged: true);
+  }
+
+  /// Saatte dinlenme süresi değiştirildi; ayar [Settings] tarafından 15–600'e sınırlanır. Yayın tur sonunda olur.
+  Future<_Effect> _applySetRestSeconds(SetRestSecondsEvent event) async {
+    await settings.setRestSeconds(event.seconds);
+    return const _Effect(settingsChanged: true);
   }
 
   String? _rawEventId(String text) => _rawEventIdPattern.firstMatch(text)?.group(1);
 }
+
+/// Bir olayın etkisi: etkilenen antrenman (varsa), dinlenme sayacının ve süre ayarının değişip değişmediği.
+class _Effect {
+  const _Effect({this.workoutId, this.restChanged = false, this.settingsChanged = false});
+
+  final int? workoutId;
+  final bool restChanged;
+  final bool settingsChanged;
+}
+
+const _Effect _noEffect = _Effect();

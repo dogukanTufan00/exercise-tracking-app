@@ -11,6 +11,9 @@ import com.dogukantufan00.exercise_tracking_app.tile.TileUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 /**
  * Uygulama sınıfı: tek [WorkoutSyncRepository] ve [ThemeSource] örneğini oluşturur ve tutar.
@@ -37,8 +40,13 @@ class WatchApp : Application() {
         restTimer = SessionRestTimer(
             scope = scope,
             clock = { SystemClock.elapsedRealtime() },
+            wallClock = { System.currentTimeMillis() },
             vibrate = { vibrateRestFinished(this@WatchApp) },
         )
+        // Sayaç hedefi iyimser durumdan gelir; ekran kapalıyken de izlensin diye uygulama kapsamında toplanır (§16.2).
+        scope.launch {
+            syncRepository.workout.map { it?.rest }.distinctUntilChanged().collect { restTimer.follow(it) }
+        }
         TileUpdater.start(
             context = this,
             scope = scope,

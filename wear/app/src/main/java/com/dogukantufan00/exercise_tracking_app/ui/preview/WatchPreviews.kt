@@ -2,15 +2,14 @@ package com.dogukantufan00.exercise_tracking_app.ui.preview
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import com.dogukantufan00.exercise_tracking_app.data.PendingStart
-import com.dogukantufan00.exercise_tracking_app.data.RestSettingsStore
 import com.dogukantufan00.exercise_tracking_app.data.WatchProgram
 import com.dogukantufan00.exercise_tracking_app.data.WatchSetValue
 import com.dogukantufan00.exercise_tracking_app.data.WatchTarget
 import com.dogukantufan00.exercise_tracking_app.data.WorkoutSyncRepository
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayExercise
+import com.dogukantufan00.exercise_tracking_app.domain.DisplayRest
 import com.dogukantufan00.exercise_tracking_app.domain.DisplaySet
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
 import com.dogukantufan00.exercise_tracking_app.domain.RestProgress
@@ -30,9 +29,7 @@ import kotlinx.coroutines.flow.StateFlow
 private class PreviewRestTimer : RestTimerController {
     override val rest: StateFlow<RestProgress?> = MutableStateFlow(null)
     override val finished: SharedFlow<Unit> = MutableSharedFlow()
-    override fun start(totalSeconds: Int) = Unit
-    override fun adjust(deltaSeconds: Int) = Unit
-    override fun skip() = Unit
+    override fun follow(target: DisplayRest?) = Unit
 }
 
 /** Önizlemeler için sahte repository: sabit bir antrenman ve erişilebilirlik durumu. Yazmalar yalnızca yoksayılır. */
@@ -55,6 +52,14 @@ class PreviewWorkoutSyncRepository(
     override suspend fun finishWorkout() = Unit
 
     override suspend fun cancelPendingStart() = Unit
+
+    override suspend fun adjustRest(deltaSeconds: Int) = Unit
+
+    override suspend fun skipRest() = Unit
+
+    override val restSeconds: StateFlow<Int> = MutableStateFlow(90)
+
+    override suspend fun setRestSeconds(seconds: Int) = Unit
 }
 
 private val previewWorkout = DisplayWorkout(
@@ -86,11 +91,9 @@ private val previewWorkout = DisplayWorkout(
 
 @Composable
 private fun rememberPreviewViewModel(workout: DisplayWorkout?, reachable: Boolean = true): WatchWorkoutViewModel {
-    val context = LocalContext.current
     return remember {
         WatchWorkoutViewModel(
             repository = PreviewWorkoutSyncRepository(workout, reachable),
-            restSettings = RestSettingsStore.create(context),
             restTimer = PreviewRestTimer(),
         )
     }

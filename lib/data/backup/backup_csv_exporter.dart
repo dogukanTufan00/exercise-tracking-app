@@ -4,6 +4,7 @@ import '../models/backup_data.dart';
 ///
 /// UTF-8 BOM ile başlar; satırlar `\r\n` ile ayrılır. Her set bir satırdır.
 /// Seti olmayan hareket ve hareketi olmayan antrenman da birer satır olarak yazılır.
+/// Son sütun `finished_at` (format 4): bitiş anı ISO 8601 metni; bitmemişse boş hücre.
 String exportBackupCsv(BackupData data) {
   final buffer = StringBuffer('﻿');
   _writeRow(buffer, const [
@@ -16,15 +17,17 @@ String exportBackupCsv(BackupData data) {
     'weight_kg',
     'reps',
     'note',
+    'finished_at',
   ]);
 
   for (final workout in data.workouts) {
     final date = _formatDate(workout.startedAt);
     final time = _formatTime(workout.startedAt);
     final title = workout.title ?? '';
+    final finished = workout.finishedAt?.toIso8601String() ?? '';
 
     if (workout.exercises.isEmpty) {
-      _writeRow(buffer, [date, time, title, '', '', '', '', '', '']);
+      _writeRow(buffer, [date, time, title, '', '', '', '', '', '', finished]);
       continue;
     }
 
@@ -45,6 +48,7 @@ String exportBackupCsv(BackupData data) {
           '',
           '',
           note,
+          finished,
         ]);
         continue;
       }
@@ -60,6 +64,7 @@ String exportBackupCsv(BackupData data) {
           _formatWeight(set.weightKg),
           '${set.reps}',
           note,
+          finished,
         ]);
       }
     }

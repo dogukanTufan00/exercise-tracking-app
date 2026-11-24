@@ -16,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.dogukantufan00.exercise_tracking_app.data.RestSettingsStore
 import com.dogukantufan00.exercise_tracking_app.session.SessionController
 import com.dogukantufan00.exercise_tracking_app.ui.LaunchRequest
 import com.dogukantufan00.exercise_tracking_app.ui.WatchNavHost
@@ -43,7 +42,6 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) consumeLaunchIntent(intent)
 
         val repository = (application as WatchApp).syncRepository
-        val restSettings = RestSettingsStore.create(applicationContext)
         val restTimer = (application as WatchApp).restTimer
         val themeSource = (application as WatchApp).themeSource
         val prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
@@ -52,7 +50,7 @@ class MainActivity : ComponentActivity() {
             val themeId by themeSource.themeId.collectAsStateWithLifecycle()
             WatchTheme(themeId) {
                 val viewModel: WatchWorkoutViewModel = viewModel(
-                    factory = watchWorkoutViewModelFactory(repository, restSettings, restTimer),
+                    factory = watchWorkoutViewModelFactory(repository, restTimer),
                 )
                 val workout by viewModel.workout.collectAsStateWithLifecycle()
                 val active = workout != null

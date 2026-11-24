@@ -710,7 +710,7 @@ void main() {
       final map = jsonDecode(encodeBackupJson(programData()))
           as Map<String, dynamic>;
 
-      expect(map['format_version'], 3);
+      expect(map['format_version'], BackupData.currentFormatVersion);
       final program = (map['programs'] as List).first as Map<String, dynamic>;
       expect(program['name'], 'Üst/Alt');
       expect(program['is_active'], isTrue);
@@ -790,6 +790,60 @@ void main() {
       final decoded = decodeBackupJson(_encodeMap(validMapV3([program])));
 
       expect(decoded.programs.single.days.single.exercises.single.weightKg, isNull);
+    });
+  });
+
+  group('biçim 4: bitiş anı', () {
+    BackupData finishedData() {
+      return BackupData(
+        exportedAt: DateTime(2026, 11, 24, 20),
+        exercises: const [],
+        workouts: [
+          BackupWorkout(
+            startedAt: DateTime(2026, 11, 24, 18, 0),
+            finishedAt: DateTime(2026, 11, 24, 19, 10),
+            exercises: const [],
+          ),
+          BackupWorkout(
+            startedAt: DateTime(2026, 11, 23, 18, 0),
+            exercises: const [],
+          ),
+        ],
+      );
+    }
+
+    test('gidiş-dönüşte bitiş anı korunur; bitirilmeyen antrenman null kalır', () {
+      final decoded = decodeBackupJson(encodeBackupJson(finishedData()));
+
+      expect(decoded.formatVersion, 4);
+      expect(decoded.workouts[0].finishedAt, DateTime(2026, 11, 24, 19, 10));
+      expect(decoded.workouts[1].finishedAt, isNull);
+    });
+
+    test('yazılan JSON her antrenmanda finished_at anahtarını içerir', () {
+      final map = jsonDecode(encodeBackupJson(finishedData())) as Map<String, dynamic>;
+      final workouts = map['workouts'] as List;
+
+      expect(map['format_version'], 4);
+      expect((workouts[0] as Map)['finished_at'], '2026-11-24T19:10:00.000');
+      expect((workouts[1] as Map).containsKey('finished_at'), isTrue);
+      expect((workouts[1] as Map)['finished_at'], isNull);
+    });
+
+    test('biçim 3 yedeğinde finished_at yoksa null okunur', () {
+      final map = _validMap()..['format_version'] = 3;
+
+      final decoded = decodeBackupJson(_encodeMap(map));
+
+      expect(decoded.workouts.single.finishedAt, isNull);
+    });
+
+    test('finished_at metin değilse ya da tarih değilse bozuk', () {
+      final map = _validMap();
+      final workout = (map['workouts'] as List).first as Map<String, dynamic>;
+      workout['finished_at'] = 'dün akşam';
+
+      _expectCorrupt(_encodeMap(map), 'workouts[0].finished_at');
     });
   });
 }

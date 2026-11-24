@@ -1,5 +1,6 @@
 import 'package:exercise_tracking_app/data/models/models.dart';
 import 'package:exercise_tracking_app/data/repositories/settings_repository.dart';
+import 'package:exercise_tracking_app/domain/rest_timer.dart';
 
 /// Testler için bellekte çalışan [SettingsRepository].
 ///
@@ -22,28 +23,40 @@ class FakeSettingsRepository implements SettingsRepository {
     savedThemeIds.add(themeId);
   }
 
-  // TODO(dalga 16, CB): dinlenme ve yedek hatırlatması ayarlarını uygula.
-  @override
-  Future<int> getRestSeconds() => throw UnimplementedError();
+  int _restSeconds = restDefaultSeconds;
+  bool _restVibrateOnPhone = true;
+  DateTime? _lastBackupAt;
+  DateTime? _backupReminderDismissedAt;
 
   @override
-  Future<void> setRestSeconds(int seconds) => throw UnimplementedError();
+  Future<int> getRestSeconds() async => _restSeconds;
 
   @override
-  Future<bool> getRestVibrateOnPhone() => throw UnimplementedError();
+  Future<void> setRestSeconds(int seconds) async {
+    _restSeconds = clampRestSeconds(seconds);
+  }
 
   @override
-  Future<void> setRestVibrateOnPhone(bool value) => throw UnimplementedError();
+  Future<bool> getRestVibrateOnPhone() async => _restVibrateOnPhone;
 
   @override
-  Future<DateTime?> getLastBackupAt() => throw UnimplementedError();
+  Future<void> setRestVibrateOnPhone(bool value) async {
+    _restVibrateOnPhone = value;
+  }
 
   @override
-  Future<void> setLastBackupAt(DateTime value) => throw UnimplementedError();
+  Future<DateTime?> getLastBackupAt() async => _lastBackupAt;
 
   @override
-  Future<DateTime?> getBackupReminderDismissedAt() => throw UnimplementedError();
+  Future<void> setLastBackupAt(DateTime value) async {
+    _lastBackupAt = value;
+  }
 
   @override
-  Future<void> setBackupReminderDismissedAt(DateTime value) => throw UnimplementedError();
+  Future<DateTime?> getBackupReminderDismissedAt() async => _backupReminderDismissedAt;
+
+  @override
+  Future<void> setBackupReminderDismissedAt(DateTime value) async {
+    _backupReminderDismissedAt = value;
+  }
 }

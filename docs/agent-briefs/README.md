@@ -140,3 +140,4 @@ await tester.pumpAndSettle();
 | 16a | CA | [Şema 4, bitiş saati, yedek 4, telefon dinlenme bildirimi (#22, #18)](wave16-ca-duration-data.md) |
 | 16a | CB | [Telefonda dinlenme sayacı ve saat senkronu (#18)](wave16-cb-rest-sync-phone.md) |
 | 16a | CC | [Saatte senkron dinlenme sayacı (#18)](wave16-cc-rest-sync-watch.md) |
+| 16b | CD | [Telefon arayüzü: dinlenme şeridi, Bitir, süre, ayarlar, yedek hatırlatması (#18, #22, #19)](wave16-cd-phone-ui.md) |

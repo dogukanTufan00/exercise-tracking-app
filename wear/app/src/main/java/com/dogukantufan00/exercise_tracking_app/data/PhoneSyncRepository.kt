@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import com.dogukantufan00.exercise_tracking_app.domain.DisplayWorkout
+import com.dogukantufan00.exercise_tracking_app.domain.REST_DEFAULT_SECONDS
+import com.dogukantufan00.exercise_tracking_app.domain.RestTimer
 import com.dogukantufan00.exercise_tracking_app.domain.mergeOptimistic
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.DataClient
@@ -34,11 +36,11 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * [WorkoutSyncRepository]'nin Data Layer gerçeklemesi (bkz. docs/ARCHITECTURE.md §15.4, §15.6 ve §15.8).
+ * [WorkoutSyncRepository]'nin Data Layer gerçeklemesi (bkz. docs/ARCHITECTURE.md §15.4, §15.6, §15.8 ve §16.2).
  *
- * Telefonun anlık durumunu, etkin programını ve işlenmiş olay id'lerini DataItem'lardan okur; saatteki olayları
- * ([PendingEventStore]) telefona MessageClient ile gönderir. Olay, telefon onaylayana kadar kuyrukta kalır;
- * tekrar göndermek güvenlidir.
+ * Telefonun anlık durumunu, etkin programını, işlenmiş olay id'lerini ve dinlenme süresi ayarını DataItem'lardan
+ * okur; saatteki olayları ([PendingEventStore]) telefona MessageClient ile gönderir. Olay, telefon onaylayana kadar
+ * kuyrukta kalır; tekrar göndermek güvenlidir.
  */
 class PhoneSyncRepository(
     context: Context,
@@ -50,6 +52,7 @@ class PhoneSyncRepository(
     private val capabilityClient: CapabilityClient = Wearable.getCapabilityClient(appContext)
     private val messageClient = Wearable.getMessageClient(appContext)
     private val store = PendingEventStore(appContext)
+    private val restCache = RestSettingsStore.create(appContext)
     private val flushMutex = Mutex()
 
     private val snapshotFlow = MutableStateFlow<WatchSnapshot?>(null)
@@ -69,6 +72,16 @@ class PhoneSyncRepository(
         combine(store.events, programFlow) { events, currentProgram -> pendingStartOf(events, currentProgram) }
             .stateIn(scope, SharingStarted.Eagerly, null)
 
+    /** Son bilinen (telefondan kopyalanmış) dinlenme süresi; hiç yoksa varsayılan. */
+    private val cachedRestSeconds: StateFlow<Int> =
+        restCache.restSeconds.stateIn(scope, SharingStarted.Eagerly, REST_DEFAULT_SECONDS)
+
+    /** Bekleyen ayar olayı varsa onun değeri (iyimser), yoksa önbellek. */
+    override val restSeconds: StateFlow<Int> =
+        combine(cachedRestSeconds, store.events) { cached, events ->
+            events.filterIsInstance<SetRestSecondsEvent>().lastOrNull()?.seconds ?: cached
+        }.stateIn(scope, SharingStarted.Eagerly, REST_DEFAULT_SECONDS)
+
     init {
         dataClient.addListener(DataClient.OnDataChangedListener { buffer ->
             try {
@@ -77,6 +90,7 @@ class PhoneSyncRepository(
                         SNAPSHOT_PATH -> handleSnapshotEvent(event)
                         PROGRAM_PATH -> handleProgramEvent(event)
                         APPLIED_PATH -> handleAppliedEvent(event)
+                        REST_SETTINGS_PATH -> handleRestSettingsEvent(event)
                     }
                 }
             } finally {
@@ -106,6 +120,7 @@ class PhoneSyncRepository(
 
     override suspend fun addSet(workoutExerciseId: Long, weightKg: Double, reps: Int) {
         val workoutId = snapshotFlow.value?.workoutId ?: return
+        val seconds = restSeconds.value
         store.update { events ->
             events + AddSetEvent(
                 eventId = UUID.randomUUID().toString(),
@@ -114,6 +129,7 @@ class PhoneSyncRepository(
                 workoutExerciseId = workoutExerciseId,
                 weightKg = weightKg,
                 reps = reps,
+                restSeconds = seconds,
             )
         }
         scope.launch { flush() }
@@ -160,11 +176,52 @@ class PhoneSyncRepository(
         store.update { events -> events.filterNot { it is StartWorkoutEvent } }
     }
 
-    /** Anlık durum, program ve işlenmiş olaylar uygulamanın açılışında okunur. */
+    override suspend fun adjustRest(deltaSeconds: Int) {
+        val display = workout.value ?: return
+        val rest = display.rest ?: return
+        store.update { events ->
+            events + AdjustRestEvent(
+                eventId = UUID.randomUUID().toString(),
+                workoutId = display.workoutId,
+                createdAt = LocalDateTime.now().toString(),
+                restId = rest.restId,
+                deltaSeconds = deltaSeconds,
+            )
+        }
+        scope.launch { flush() }
+    }
+
+    override suspend fun skipRest() {
+        val display = workout.value ?: return
+        val rest = display.rest ?: return
+        store.update { events ->
+            events + SkipRestEvent(
+                eventId = UUID.randomUUID().toString(),
+                workoutId = display.workoutId,
+                createdAt = LocalDateTime.now().toString(),
+                restId = rest.restId,
+            )
+        }
+        scope.launch { flush() }
+    }
+
+    override suspend fun setRestSeconds(seconds: Int) {
+        store.update { events ->
+            events + SetRestSecondsEvent(
+                eventId = UUID.randomUUID().toString(),
+                createdAt = LocalDateTime.now().toString(),
+                seconds = RestTimer.clampSeconds(seconds),
+            )
+        }
+        scope.launch { flush() }
+    }
+
+    /** Anlık durum, program, işlenmiş olaylar ve dinlenme ayarı uygulamanın açılışında okunur. */
     private suspend fun loadCurrentState() {
         readItem(SNAPSHOT_PATH, ::decodeSnapshot)?.let { snapshotFlow.value = it }
         readItem(PROGRAM_PATH, ::decodeProgram)?.let { programFlow.value = it }
         readItem(APPLIED_PATH, ::decodeApplied)?.let { appliedFlow.value = it }
+        readItem(REST_SETTINGS_PATH, ::decodeRestSeconds)?.let { restCache.save(it) }
         pruneAsync()
     }
 
@@ -196,10 +253,18 @@ class PhoneSyncRepository(
         }
     }
 
+    /** Telefonun dinlenme süresi ayarı; önbelleğe yazılır. Silinmesi ya da bozuk veri öncekini korur. */
+    private fun handleRestSettingsEvent(event: DataEvent) {
+        if (event.type == DataEvent.TYPE_DELETED) return
+        decodeRestSeconds(event.dataItem)?.let { seconds ->
+            scope.launch { restCache.save(seconds) }
+        }
+    }
+
     /**
      * Bekleyen kuyruğu budar (§15.8):
      * - id'si uygulanmış olaylar (anlık durum veya `/events/applied`) silinir;
-     * - anlık durum varsa, ona ait olmayan set olayları silinir;
+     * - anlık durum varsa, ona ait olmayan antrenman olayları (set, sayaç, bitirme) silinir;
      * - StartWorkoutEvent yalnızca uygulanınca silinir (iptal [cancelPendingStart] ile).
      */
     private fun pruneAsync() {
@@ -210,9 +275,14 @@ class PhoneSyncRepository(
                 events.filterNot { event ->
                     when (event) {
                         is StartWorkoutEvent -> event.eventId in applied
+                        is SetRestSecondsEvent -> event.eventId in applied
                         is AddSetEvent ->
                             event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
                         is DeleteSetEvent ->
+                            event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
+                        is AdjustRestEvent ->
+                            event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
+                        is SkipRestEvent ->
                             event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
                         is FinishWorkoutEvent ->
                             event.eventId in applied || (snapshot != null && event.workoutId != snapshot.workoutId)
@@ -251,6 +321,13 @@ class PhoneSyncRepository(
 
     private fun decodeApplied(item: DataItem): Set<String>? =
         decodeProtocolJson(item, WatchApplied.serializer()) { it.protocol }?.appliedEventIds?.toSet()
+
+    /** Dinlenme süresi (saniye) DataMap'ten okunur; anahtar yoksa ya da okunamazsa null. */
+    private fun decodeRestSeconds(item: DataItem): Int? =
+        runCatching {
+            val map = DataMapItem.fromDataItem(item).dataMap
+            if (map.containsKey(REST_SECONDS_KEY)) map.getInt(REST_SECONDS_KEY) else null
+        }.getOrNull()
 
     /** DataItem'daki JSON'u çözer; bozuk veya farklı protokol sürümü için null. */
     private fun <T> decodeProtocolJson(item: DataItem, serializer: KSerializer<T>, protocolOf: (T) -> Int): T? {

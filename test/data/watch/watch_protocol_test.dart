@@ -21,14 +21,16 @@ void main() {
       "draft": { "weightKg": 40.0, "reps": 10 },
       "previous": [ { "weightKg": 37.5, "reps": 10 } ]
     }
-  ]
+  ],
+  "rest": { "restId": "5b0e-2", "endsAt": "2026-11-21T18:42:35.000", "totalSeconds": 90 }
 }
 ''';
 
   /// §15.4'teki iki olay örneği.
   const addSetJson = '''
 { "protocol": 1, "eventId": "uuid", "type": "addSet", "workoutId": 42,
-  "workoutExerciseId": 101, "weightKg": 40.0, "reps": 10, "createdAt": "2026-11-21T18:41:05.000" }
+  "workoutExerciseId": 101, "weightKg": 40.0, "reps": 10, "createdAt": "2026-11-21T18:41:05.000",
+  "restSeconds": 90 }
 ''';
 
   const deleteSetJson = '''
@@ -45,6 +47,10 @@ void main() {
     expect(snapshot.title, 'Push A');
     expect(snapshot.startedAt, DateTime(2026, 11, 21, 18, 30));
     expect(snapshot.exercises.single.target, const WatchTarget(sets: 3, reps: 10, weightKg: 40));
+    expect(
+      snapshot.rest,
+      WatchRest(restId: '5b0e-2', endsAt: DateTime(2026, 11, 21, 18, 42, 35), totalSeconds: 90),
+    );
     expect(snapshot.toJson(), equals(original));
   });
 
@@ -65,6 +71,7 @@ void main() {
           'previous': <Object?>[],
         },
       ],
+      'rest': null,
     };
 
     final snapshot = WatchSnapshot.fromJson(original);
@@ -86,7 +93,33 @@ void main() {
     expect(add.workoutExerciseId, 101);
     expect(add.weightKg, 40);
     expect(add.reps, 10);
+    expect(add.restSeconds, 90);
     expect(event.toJson(), equals(original));
+  });
+
+  test('restSeconds ve rest alanı olmayan eski JSON okunur (null)', () {
+    final oldAdd = jsonDecode(addSetJson) as Map<String, Object?>..remove('restSeconds');
+    expect((WatchEvent.fromJson(oldAdd) as AddSetEvent).restSeconds, isNull);
+
+    final oldSnapshot = jsonDecode(snapshotJson) as Map<String, Object?>..remove('rest');
+    expect(WatchSnapshot.fromJson(oldSnapshot).rest, isNull);
+  });
+
+  test('dinlenme olayları okunur ve aynen yazılır', () {
+    final samples = <Map<String, Object?>>[
+      {'protocol': 1, 'eventId': 'a', 'type': 'adjustRest', 'createdAt': '2026-11-24T18:00:00.000',
+        'workoutId': 42, 'restId': 'r1', 'deltaSeconds': -15},
+      {'protocol': 1, 'eventId': 'b', 'type': 'skipRest', 'createdAt': '2026-11-24T18:00:01.000',
+        'workoutId': 42, 'restId': 'r1'},
+      {'protocol': 1, 'eventId': 'c', 'type': 'setRestSeconds', 'createdAt': '2026-11-24T18:00:02.000',
+        'seconds': 120},
+    ];
+    expect(WatchEvent.fromJson(samples[0]), isA<AdjustRestEvent>());
+    expect(WatchEvent.fromJson(samples[1]), isA<SkipRestEvent>());
+    expect((WatchEvent.fromJson(samples[2]) as SetRestSecondsEvent).seconds, 120);
+    for (final sample in samples) {
+      expect(WatchEvent.fromJson(sample).toJson(), equals(sample));
+    }
   });
 
   test('deleteSet olayı okunur ve aynen yazılır', () {

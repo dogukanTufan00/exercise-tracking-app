@@ -43,10 +43,14 @@ class BackupWorkout {
     required this.startedAt,
     required this.exercises,
     this.title,
+    this.finishedAt,
   });
 
   final DateTime startedAt;
   final String? title;
+
+  /// Bitiş anı (format 4). Format 1–3 yedeklerde ya da bitirilmemiş antrenmanda `null`.
+  final DateTime? finishedAt;
   final List<BackupWorkoutExercise> exercises;
 }
 
@@ -125,8 +129,8 @@ class BackupData {
   });
 
   /// JSON biçiminin sürümü. Biçim değişirse artırılır; içe aktarma eski sürümleri tanır.
-  /// 1: hareketler ve antrenmanlar. 2: + ölçüm türleri ve ölçümler. 3: + programlar.
-  static const int currentFormatVersion = 3;
+  /// 1: hareketler ve antrenmanlar. 2: + ölçüm türleri ve ölçümler. 3: + programlar. 4: + antrenman bitiş anı.
+  static const int currentFormatVersion = 4;
 
   final int formatVersion;
   final DateTime exportedAt;

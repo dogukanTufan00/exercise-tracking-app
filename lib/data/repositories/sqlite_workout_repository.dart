@@ -499,7 +499,7 @@ class SqliteWorkoutRepository implements WorkoutRepository {
 
     // Tek sorgu: her satır bir set; antrenman bilgisi her satırda tekrar eder.
     final rows = await db.rawQuery('''
-      SELECT w.id AS w_id, w.started_at, w.title, w.program_day_id,
+      SELECT w.id AS w_id, w.started_at, w.title, w.program_day_id, w.finished_at,
              s.id, s.workout_exercise_id, s.set_number, s.weight_kg, s.reps
       FROM exercise_sets s
       JOIN workout_exercises we ON we.id = s.workout_exercise_id
@@ -592,6 +592,7 @@ class SqliteWorkoutRepository implements WorkoutRepository {
             BackupWorkout(
               startedAt: workout.startedAt,
               title: workout.title,
+              finishedAt: workout.finishedAt,
               exercises: entriesByWorkout[workout.id] ?? const [],
             ),
         ],
@@ -657,6 +658,7 @@ class SqliteWorkoutRepository implements WorkoutRepository {
         final workoutId = await txn.insert('workouts', {
           'started_at': startedAt,
           'title': _cleanText(workout.title),
+          'finished_at': workout.finishedAt?.toIso8601String(),
         });
         for (var position = 0; position < workout.exercises.length; position++) {
           final entry = workout.exercises[position];
@@ -749,8 +751,13 @@ class SqliteWorkoutRepository implements WorkoutRepository {
   }
 
   @override
-  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt) {
-    // TODO(dalga 16, CA): uygula.
-    throw UnimplementedError();
+  Future<void> setWorkoutFinishedAt(int workoutId, DateTime? finishedAt) async {
+    final db = await _db;
+    await db.update(
+      'workouts',
+      {'finished_at': finishedAt?.toIso8601String()},
+      where: 'id = ?',
+      whereArgs: [workoutId],
+    );
   }
 }

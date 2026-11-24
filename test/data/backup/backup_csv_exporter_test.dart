@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 const String _bom = '﻿';
 const String _header =
-    'date,time,workout_title,exercise,muscle_group,set_number,weight_kg,reps,note';
+    'date,time,workout_title,exercise,muscle_group,set_number,weight_kg,reps,note,finished_at';
 
 BackupData _dataWith(List<BackupWorkout> workouts) {
   return BackupData(
@@ -94,8 +94,8 @@ void main() {
 
       expect(_lines(csv), [
         _header,
-        '2026-10-17,18:30,Üst vücut,Bench Press,Göğüs,1,60,10,iyi gitti',
-        '2026-10-17,18:30,Üst vücut,Bench Press,Göğüs,2,62.5,8,iyi gitti',
+        '2026-10-17,18:30,Üst vücut,Bench Press,Göğüs,1,60,10,iyi gitti,',
+        '2026-10-17,18:30,Üst vücut,Bench Press,Göğüs,2,62.5,8,iyi gitti,',
       ]);
     });
 
@@ -195,7 +195,7 @@ void main() {
 
       expect(_lines(csv), [
         _header,
-        '2026-10-17,18:30,Boş,Dips,Kol,,,,bugün yok',
+        '2026-10-17,18:30,Boş,Dips,Kol,,,,bugün yok,',
       ]);
     });
 
@@ -208,7 +208,7 @@ void main() {
 
       expect(_lines(csv), [
         _header,
-        '2026-03-04,06:00,Yürüyüş,,,,,,',
+        '2026-03-04,06:00,Yürüyüş,,,,,,,',
       ]);
     });
 
@@ -227,7 +227,7 @@ void main() {
         ]),
       );
 
-      expect(_lines(csv)[1], '2026-10-17,18:30,,Row,Sırt,1,40,12,');
+      expect(_lines(csv)[1], '2026-10-17,18:30,,Row,Sırt,1,40,12,,');
     });
 
     test('muscle_group Türkçe etiket olarak yazılır', () {
@@ -331,7 +331,7 @@ void main() {
 
       expect(
         _lines(csv)[1],
-        '2026-10-17,18:30,"Üst, alt","Bench, Incline",Göğüs,1,10,10,"a, b, c"',
+        '2026-10-17,18:30,"Üst, alt","Bench, Incline",Göğüs,1,10,10,"a, b, c",',
       );
     });
 
@@ -353,7 +353,7 @@ void main() {
 
       expect(
         _lines(csv)[1],
-        '2026-10-17,18:30,,"Say ""Merhaba""",Diğer,1,1,1,"söz: ""ağır"""',
+        '2026-10-17,18:30,,"Say ""Merhaba""",Diğer,1,1,1,"söz: ""ağır""",',
       );
     });
 
@@ -376,7 +376,7 @@ void main() {
       expect(
         csv.substring(_bom.length),
         '$_header\r\n'
-        '2026-10-17,18:30,,Squat,Bacak,1,80,5,"birinci satır\nikinci satır"\r\n',
+        '2026-10-17,18:30,,Squat,Bacak,1,80,5,"birinci satır\nikinci satır",\r\n',
       );
     });
 
@@ -399,7 +399,7 @@ void main() {
       expect(
         csv.substring(_bom.length),
         '$_header\r\n'
-        '2026-10-17,18:30,,Squat,Bacak,1,80,5,"a\rb"\r\n',
+        '2026-10-17,18:30,,Squat,Bacak,1,80,5,"a\rb",\r\n',
       );
     });
   });
@@ -424,8 +424,48 @@ void main() {
 
       expect(
         _lines(csv)[1],
-        '2026-10-17,18:30,Gün ışığı İzmir ÇÖĞÜŞ,Şınav çeşidi,Göğüs,1,0,20,"ağrı yok, güzel"',
+        '2026-10-17,18:30,Gün ışığı İzmir ÇÖĞÜŞ,Şınav çeşidi,Göğüs,1,0,20,"ağrı yok, güzel",',
       );
+    });
+  });
+
+  group('bitiş anı (finished_at, biçim 4)', () {
+    test('başlık satırı finished_at ile biter', () {
+      final csv = exportBackupCsv(_dataWith(const []));
+
+      expect(_lines(csv), [_header]);
+      expect(_lines(csv)[0].endsWith(',finished_at'), isTrue);
+    });
+
+    test('her satırda bitiş anı aynıdır; bitmemiş antrenmanda boş hücre', () {
+      final finished = DateTime(2026, 10, 17, 19, 10);
+      final csv = exportBackupCsv(
+        _dataWith([
+          BackupWorkout(
+            startedAt: DateTime(2026, 10, 17, 18, 30),
+            title: 'Üst',
+            finishedAt: finished,
+            exercises: const [
+              BackupWorkoutExercise(
+                exerciseName: 'Row',
+                muscleGroup: MuscleGroup.back,
+                sets: [
+                  BackupSet(weightKg: 40, reps: 12),
+                  BackupSet(weightKg: 42.5, reps: 10),
+                ],
+              ),
+            ],
+          ),
+          _workout(startedAt: DateTime(2026, 10, 18, 7, 5), title: 'Açık'),
+        ]),
+      );
+
+      expect(_lines(csv), [
+        _header,
+        '2026-10-17,18:30,Üst,Row,Sırt,1,40,12,,2026-10-17T19:10:00.000',
+        '2026-10-17,18:30,Üst,Row,Sırt,2,42.5,10,,2026-10-17T19:10:00.000',
+        '2026-10-18,07:05,Açık,,,,,,,',
+      ]);
     });
   });
 }

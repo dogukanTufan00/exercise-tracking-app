@@ -1,7 +1,12 @@
 package com.dogukantufan00.exercise_tracking_app.domain
 
 import com.dogukantufan00.exercise_tracking_app.data.AddSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.AdjustRestEvent
 import com.dogukantufan00.exercise_tracking_app.data.DeleteSetEvent
+import com.dogukantufan00.exercise_tracking_app.data.SetRestSecondsEvent
+import com.dogukantufan00.exercise_tracking_app.data.SkipRestEvent
+import com.dogukantufan00.exercise_tracking_app.data.WatchRest
+import java.time.LocalDateTime
 import com.dogukantufan00.exercise_tracking_app.data.FinishWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.StartWorkoutEvent
 import com.dogukantufan00.exercise_tracking_app.data.WatchEvent
@@ -222,5 +227,105 @@ class MergeOptimisticTest {
         assertEquals(listOf(901L, 902L, null), sets.map { it.id })
         assertEquals(listOf(1, 2, 3), sets.map { it.setNumber })
         assertEquals("e1", sets.last().pendingEventId)
+    }
+
+    private fun withRest(
+        restId: String = "r1",
+        endsAt: String = "2026-11-21T18:50:00.000",
+        totalSeconds: Int = 90,
+    ) = snapshot().copy(rest = WatchRest(restId, endsAt, totalSeconds))
+
+    private fun adjustRest(restId: String = "r1", deltaSeconds: Int = 15, eventId: String = "a1") = AdjustRestEvent(
+        eventId = eventId,
+        workoutId = 42,
+        createdAt = "2026-11-21T18:45:00.000",
+        restId = restId,
+        deltaSeconds = deltaSeconds,
+    )
+
+    @Test
+    fun snapshotRestIsShown() {
+        val result = mergeOptimistic(withRest(), emptyList())!!
+
+        assertEquals(DisplayRest("r1", LocalDateTime.parse("2026-11-21T18:50:00"), 90), result.rest)
+        assertFalse(result.hasPendingEvents)
+    }
+
+    @Test
+    fun addSetWithRestSecondsStartsRest() {
+        val event = addSet(eventId = "e1").copy(restSeconds = 120)
+
+        val result = mergeOptimistic(snapshot(), listOf(event))!!
+
+        assertEquals(DisplayRest("e1", LocalDateTime.parse("2026-11-21T18:43:05"), 120), result.rest)
+    }
+
+    @Test
+    fun addSetRestSecondsIsClamped() {
+        val event = addSet(eventId = "e1").copy(restSeconds = 5)
+
+        val result = mergeOptimistic(snapshot(), listOf(event))!!
+
+        assertEquals(15, result.rest?.totalSeconds)
+    }
+
+    @Test
+    fun addSetWithoutRestSecondsKeepsRest() {
+        val result = mergeOptimistic(withRest(), listOf(addSet(eventId = "e1")))!!
+
+        assertEquals("r1", result.rest?.restId)
+    }
+
+    @Test
+    fun adjustRestMovesEndAndTotal() {
+        val result = mergeOptimistic(withRest(), listOf(adjustRest(deltaSeconds = 15)))!!
+
+        assertEquals(DisplayRest("r1", LocalDateTime.parse("2026-11-21T18:50:15"), 105), result.rest)
+        assertTrue(result.hasPendingEvents)
+    }
+
+    @Test
+    fun adjustRestOfOtherRestIdIsIgnored() {
+        val result = mergeOptimistic(withRest(), listOf(adjustRest(restId = "other")))!!
+
+        assertEquals(90, result.rest?.totalSeconds)
+        assertFalse(result.hasPendingEvents)
+    }
+
+    @Test
+    fun adjustRestTotalNeverBelowOne() {
+        val result = mergeOptimistic(withRest(totalSeconds = 10), listOf(adjustRest(deltaSeconds = -15)))!!
+
+        assertEquals(1, result.rest?.totalSeconds)
+    }
+
+    @Test
+    fun skipRestClearsRest() {
+        val skip = SkipRestEvent(eventId = "s1", workoutId = 42, createdAt = "2026-11-21T18:45:00.000", restId = "r1")
+
+        val result = mergeOptimistic(withRest(), listOf(skip))!!
+
+        assertNull(result.rest)
+        assertTrue(result.hasPendingEvents)
+    }
+
+    @Test
+    fun appliedSkipRestIsIgnored() {
+        val skip = SkipRestEvent(eventId = "s1", workoutId = 42, createdAt = "2026-11-21T18:45:00.000", restId = "r1")
+
+        val result = mergeOptimistic(withRest().copy(appliedEventIds = listOf("s1")), listOf(skip))!!
+
+        assertEquals("r1", result.rest?.restId)
+    }
+
+    @Test
+    fun setRestSecondsDoesNotChangeRest() {
+        val event = SetRestSecondsEvent(eventId = "x", createdAt = "2026-11-21T18:45:00.000", seconds = 120)
+
+        val result = mergeOptimistic(withRest(), listOf(event))!!
+
+        assertEquals("r1", result.rest?.restId)
+        assertEquals(90, result.rest?.totalSeconds)
+        assertTrue(result.hasPendingEvents)
     }
 }

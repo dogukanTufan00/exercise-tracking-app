@@ -24,6 +24,13 @@ const val SNAPSHOT_JSON_KEY = "json"
 const val THEME_PATH = "/settings/theme"
 const val THEME_KEY = "themeId"
 
+/**
+ * Dinlenme süresi ayarının DataItem yolu (§16.2); süre (saniye, int) DataMap'te [REST_SECONDS_KEY] anahtarındadır.
+ * Telefon her değişiklikte yazar; saat son değeri saklar ve bağlantı yokken onu kullanır.
+ */
+const val REST_SETTINGS_PATH = "/settings/rest"
+const val REST_SECONDS_KEY = "restSeconds"
+
 /** Etkin programın DataItem yolu; JSON, DataMap'te [SNAPSHOT_JSON_KEY] ("json") anahtarındadır (§15.8). */
 const val PROGRAM_PATH = "/program/active"
 
@@ -58,6 +65,13 @@ data class WatchTarget(val sets: Int, val reps: Int, val weightKg: Double?)
 @Serializable
 data class WatchSet(val id: Long, val setNumber: Int, val weightKg: Double, val reps: Int)
 
+/**
+ * Çalışan dinlenme sayacı (§16.2). [endsAt] saat dilimsiz yerel bitiş anıdır; iki cihaz kalan süreyi
+ * kendi saatinden hesaplar. [totalSeconds] ±15 sn ile değişir (ilerleme halkası için).
+ */
+@Serializable
+data class WatchRest(val restId: String, val endsAt: String, val totalSeconds: Int)
+
 @Serializable
 data class WatchExercise(
     val workoutExerciseId: Long,
@@ -83,6 +97,8 @@ data class WatchSnapshot(
     val appliedEventIds: List<String>,
     /** position sırasıyla. */
     val exercises: List<WatchExercise>,
+    /** Çalışan dinlenme sayacı; yoksa ya da eski telefon göndermediyse null. */
+    val rest: WatchRest? = null,
 )
 
 /** Saatten telefona giden olay. JSON'daki `type` alanı alt sınıfı belirler. */
@@ -95,7 +111,10 @@ sealed class WatchEvent {
     abstract val createdAt: String
 }
 
-/** Saatte "Set tamam" denildi. */
+/**
+ * Saatte "Set tamam" denildi. [restSeconds]: saatin bu set için başlattığı dinlenme süresi; eski saat
+ * sürümleri göndermez (null), telefon kendi ayarını kullanır.
+ */
 @Serializable
 @SerialName("addSet")
 data class AddSetEvent(
@@ -106,6 +125,7 @@ data class AddSetEvent(
     val workoutExerciseId: Long,
     val weightKg: Double,
     val reps: Int,
+    val restSeconds: Int? = null,
 ) : WatchEvent()
 
 /** Telefonun onayladığı bir set silindi. */
@@ -137,6 +157,39 @@ data class FinishWorkoutEvent(
     override val eventId: String,
     val workoutId: Long,
     override val createdAt: String,
+) : WatchEvent()
+
+/** Saatte çalışan dinlenme ±[deltaSeconds] değiştirildi; yalnızca [restId] telefondaki sayaçsa uygulanır (§16.2). */
+@Serializable
+@SerialName("adjustRest")
+data class AdjustRestEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    val workoutId: Long,
+    override val createdAt: String,
+    val restId: String,
+    val deltaSeconds: Int,
+) : WatchEvent()
+
+/** Saatte dinlenme atlandı; yalnızca [restId] telefondaki sayaçsa uygulanır (§16.2). */
+@Serializable
+@SerialName("skipRest")
+data class SkipRestEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    val workoutId: Long,
+    override val createdAt: String,
+    val restId: String,
+) : WatchEvent()
+
+/** Saatin ayar ekranında varsayılan dinlenme süresi değişti (§16.2); etkin antrenman gerekmez. */
+@Serializable
+@SerialName("setRestSeconds")
+data class SetRestSecondsEvent(
+    override val protocol: Int = WATCH_PROTOCOL_VERSION,
+    override val eventId: String,
+    override val createdAt: String,
+    val seconds: Int,
 ) : WatchEvent()
 
 @Serializable

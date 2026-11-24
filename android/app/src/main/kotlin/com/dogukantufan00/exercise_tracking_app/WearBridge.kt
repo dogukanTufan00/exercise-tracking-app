@@ -22,6 +22,8 @@ object WearBridge {
     private const val THEME_KEY = "themeId"
     private const val PROGRAM_PATH = "/program/active"
     private const val APPLIED_PATH = "/events/applied"
+    private const val REST_SETTINGS_PATH = "/settings/rest"
+    private const val REST_SECONDS_KEY = "restSeconds"
     private const val JSON_KEY = "json"
 
     /**
@@ -42,6 +44,7 @@ object WearBridge {
                 "publishProgram" -> putJson(app, PROGRAM_PATH, JSON_KEY, call.arguments as? String, "Program", result)
                 "clearProgram" -> delete(app, PROGRAM_PATH, "Program", result)
                 "publishApplied" -> putJson(app, APPLIED_PATH, JSON_KEY, call.arguments as? String, "İşlenen olaylar", result)
+                "publishRestSettings" -> putRestSeconds(app, (call.arguments as? Number)?.toInt(), result)
                 "drainEvents" -> result.success(
                     if (!isBackground && WearBackgroundRunner.isRunning) emptyList() else WearEventQueue.list(),
                 )
@@ -79,6 +82,22 @@ object WearBridge {
         Wearable.getDataClient(context)
             .putDataItem(request)
             .addOnFailureListener { e -> Log.w(TAG, "$label yazılamadı", e) }
+        result.success(null)
+    }
+
+    /** Dinlenme süresini (sn) [REST_SETTINGS_PATH] DataItem'ında [REST_SECONDS_KEY] (int) olarak yazar (§16.2). */
+    private fun putRestSeconds(context: Context, seconds: Int?, result: MethodChannel.Result) {
+        if (seconds == null) {
+            result.error("bad_args", "Dinlenme süresi için sayı bekleniyordu", null)
+            return
+        }
+        val request = PutDataMapRequest.create(REST_SETTINGS_PATH).run {
+            dataMap.putInt(REST_SECONDS_KEY, seconds)
+            asPutDataRequest().setUrgent()
+        }
+        Wearable.getDataClient(context)
+            .putDataItem(request)
+            .addOnFailureListener { e -> Log.w(TAG, "Dinlenme ayarı yazılamadı", e) }
         result.success(null)
     }
 

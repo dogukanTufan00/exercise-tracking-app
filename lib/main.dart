@@ -13,6 +13,9 @@ import 'data/repositories/sqlite_program_repository.dart';
 import 'data/repositories/sqlite_workout_repository.dart';
 import 'data/repositories/workout_repository.dart';
 import 'data/services/backup_file_service.dart';
+import 'data/rest/rest_controller.dart';
+import 'data/rest/rest_notifier.dart';
+import 'data/rest/rest_store.dart';
 import 'data/services/database_service.dart';
 import 'data/watch/watch_aware_program_repository.dart';
 import 'data/watch/watch_aware_workout_repository.dart';
@@ -39,14 +42,26 @@ Future<void> main() async {
 
   // Saat eşlemesi: saatten gelen olaylar burada işlenir (bkz. docs/ARCHITECTURE.md §15).
   // Servis sarılmamış repository'leri kullanır; sağlayıcılara sarılmış olanlar verilir (§15.8).
+  final restStore = PrefsRestStore();
   final watchSyncService = WatchSyncService(
     repository: workoutRepository,
     programRepository: programRepository,
     channel: MethodChannelWearChannel(),
     store: PrefsWatchSyncStore(),
     fallbackTitle: formatWorkoutDate,
+    restStore: restStore,
+    settings: settingsRepository,
   );
   unawaited(watchSyncService.start());
+
+  // Telefondaki dinlenme sayacı (§16.2): saatle senkron, bildirim ve bitiş titreşimi.
+  final restController = RestController(
+    store: restStore,
+    settings: settingsRepository,
+    notifier: MethodChannelRestNotifier(),
+    watchSync: watchSyncService,
+  );
+  unawaited(restController.load());
 
   // Seçili tema saate yayınlanır: açılışta ve tema her değiştiğinde (bkz. docs/ARCHITECTURE.md §15.7).
   var publishedThemeId = themeController.themeId;
@@ -67,6 +82,7 @@ Future<void> main() async {
       themeController: themeController,
       backupFileService: DeviceBackupFileService(),
       watchSyncService: watchSyncService,
+      restController: restController,
     ),
   );
 }
@@ -84,6 +100,8 @@ Future<void> wearBackgroundMain() async {
     channel: MethodChannelWearChannel(),
     store: PrefsWatchSyncStore(),
     fallbackTitle: formatWorkoutDate,
+    restStore: PrefsRestStore(),
+    settings: PrefsSettingsRepository(),
   );
   await runWearBackground(
     service: service,
@@ -105,6 +123,7 @@ class ExerciseTrackerApp extends StatelessWidget {
     required this.themeController,
     required this.backupFileService,
     this.watchSyncService,
+    this.restController,
   });
 
   final WorkoutRepository workoutRepository;
@@ -117,9 +136,13 @@ class ExerciseTrackerApp extends StatelessWidget {
   /// Saat eşlemesi servisi; testlerde verilmez ve antrenman ekranı saatsiz çalışır.
   final WatchSyncService? watchSyncService;
 
+  /// Telefondaki dinlenme sayacı (§16.2); testlerde verilmez.
+  final RestController? restController;
+
   @override
   Widget build(BuildContext context) {
     final watchSync = watchSyncService;
+    final rest = restController;
     return MultiProvider(
       providers: [
         Provider<WorkoutRepository>.value(value: workoutRepository),
@@ -130,6 +153,8 @@ class ExerciseTrackerApp extends StatelessWidget {
         ChangeNotifierProvider<ThemeController>.value(value: themeController),
         if (watchSync != null)
           Provider<WatchSyncService>.value(value: watchSync),
+        if (rest != null)
+          ChangeNotifierProvider<RestController>.value(value: rest),
       ],
       child: Consumer<ThemeController>(
         builder: (context, controller, _) {
