@@ -17,8 +17,8 @@ android {
         minSdk = 30 // Wear OS 3
         targetSdk = 36
         // Telefonun versionCode'uyla çakışmasın diye 2000000 + N (bkz. ARCHITECTURE §15).
-        versionCode = 2000001
-        versionName = "0.1.0"
+        versionCode = 2000002
+        versionName = "0.2.0"
     }
 
     // Telefonla aynı yayın anahtarı: ../android/key.properties (repo'ya girmez).

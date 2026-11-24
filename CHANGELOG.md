@@ -7,6 +7,8 @@ uyar (bkz. `docs/ARCHITECTURE.md` §11).
 
 ## [Yayınlanmamış]
 
+## [0.6.0] - 2026-11-24
+
 ### Eklendi
 - Galaxy Watch (Wear OS) eşlikçi uygulaması, faz 1 (`wear/`, ARCHITECTURE §15) (#24): telefonda açık antrenman saatte
   görünür; saatten ağırlık/tekrar girip set eklenir ve silinir; saatte dinlenme sayacı ve titreşim. Telefon cepteyken ya da
@@ -130,7 +132,8 @@ Deneme sürümü: ilerleme ekranı (#3'ün ilk üç adımı). Antrenmanda rekor 
 - Dar ekranda ya da büyük sistem yazısında ağırlık/tekrar adımlayıcıları
   artık alt alta dizilir; sayılar küçülmez (#4).
 
-[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.5.0...HEAD
+[Yayınlanmamış]: https://github.com/dogukanTufan00/exercise-tracking-app/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.6.0
 [0.5.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.5.0
 [0.4.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.4.0
 [0.3.0]: https://github.com/dogukanTufan00/exercise-tracking-app/releases/tag/v0.3.0
